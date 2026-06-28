@@ -1,0 +1,18 @@
+export const COLORS = {
+  bg: "#1A1C1E",
+  grid: "#2C2F33",
+  track: "#23272A",
+  rail: "#3F444A",
+  DT: "#37474F",
+  FL: "#444444",
+  batteryEmpty: "#F44336",
+  batteryLow: "#F9A825",
+  batteryMid: "#4CAF50",
+  batteryFull: "#4CAF50",
+  padCharger: "#2C2F33",
+  padChargerBorder: "#3F444A",
+  padStorage: "#23272A",
+  padStorageBorder: "#3F444A",
+  crane: "#F9A825",
+  swapBay: "#F9A825",
+};

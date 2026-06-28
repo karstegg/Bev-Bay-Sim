@@ -1,33 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createSimulation,
+} from "./sim/createSimulation";
+import {
   updateSimulation,
+} from "./sim/updateSimulation";
+import {
   updateKPIs,
+} from "./sim/kpiLogic";
+import {
   drawSimulation,
+} from "./render/drawSimulation";
+import {
   SimState,
   SimConfig,
   SimKPIs,
-} from "./simulation";
+} from "./sim/types";
+import { DEFAULT_CONFIG } from "./sim/config";
 import { Play, Pause, RotateCcw, Settings, Activity } from "lucide-react";
-
-const DEFAULT_CONFIG: SimConfig = {
-  speed: 1,
-  arrivalRateMult: 1,
-  swapTime: 5,
-  activeCranes: 2,
-  showLabels: true,
-  spareBatteries: 8,
-  shiftActive: true,
-  workAreaSplits: [25, 25, 20, 30],
-  workAreaMultipliers: [0.8, 1.0, 1.5, 2.0],
-  dischargeTimeDT: 300,
-  dischargeTimeFL: 400,
-  chargeTimeVPX: 12,
-  chargeTimeVPY: 12,
-  speedDT: 100,
-  speedFL: 100,
-  deadTimeHours: 1,
-};
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,7 +29,7 @@ export default function App() {
   const [config, setConfig] = useState<SimConfig>(DEFAULT_CONFIG);
   const [kpis, setKpis] = useState<SimKPIs | null>(null);
   const [needsReset, setNeedsReset] = useState(false);
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [selectedBevId, setSelectedBevId] = useState("DT-0");
 
   const handleDrainBattery = () => {
@@ -372,6 +362,19 @@ export default function App() {
               />
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#F9A825]">
                 Show Object Labels
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer pt-1 mt-1">
+              <input
+                type="checkbox"
+                checked={config.showTrafficDebug}
+                onChange={(e) =>
+                  setConfig({ ...config, showTrafficDebug: e.target.checked })
+                }
+                className="rounded border-[#3F444A] bg-[#2C2F33] text-[#F9A825] focus:ring-[#F9A825]/20"
+              />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#F9A825]">
+                Show Traffic Debug
               </span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer pt-1 mt-1">

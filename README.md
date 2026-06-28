@@ -1,72 +1,25 @@
-# BEV Battery Bay Simulation
+# BEV Battery Swap Simulation
 
-A browser-based 2D simulation/game prototype for a battery-electric vehicle battery bay in an underground mining environment.
+This project is a React-based simulation for Battery Electric Vehicles (BEVs) utilizing battery swap stations. The simulation handles vehicle routing, battery swapping logic, queuing, crane operations for swapping, and shift-based operational scheduling.
 
-The project models the operational flow around BEV machines, batteries, swap bays, charging and storage pads, cranes, work areas, parking, and live bottleneck KPIs. It began as a quick Google AI Studio prototype and is currently a crude but playable proof of concept.
+## Features
 
-## Current status
+- **Real-Time Simulation engine:** Handles vehicle movement, pathfinding, collision avoidance, and state transitions.
+- **Battery Swap Operations:** Dual swap stations (SB1 & SB2) with traffic light controls.
+- **Crane Mechanics:** Simulates battery transfer cranes between charging racks and swap bays.
+- **High-Speed Simulation Support:** Sub-step logic allows the simulation to scale up speeds without skipping waypoints or getting vehicles stuck.
+- **Dynamic Routing:** Intelligent routing from working areas to queue lanes, parking bays, and swap bays.
+- **Performance Tracking:** Tracks key performance indicators (KPIs) like active vehicles, queued tasks, and total swaps.
 
-Prototype / proof of concept.
+## Tech Stack
 
-The app is not yet an engineering-grade digital twin. It is a visual RTS/factory-simulation style sandbox intended to help explore the operating dynamics of a BEV battery bay: queueing, charged battery availability, crane utilisation, charger utilisation, work-area demand, and shift behaviour.
-
-## Main features
-
-- Top-down BEV battery bay visualisation.
-- Dump truck and loader machine types.
-- VPX and VPY battery types.
-- Parking bay, work areas, queue lane, swap bays, charger/storage pads, and cranes.
-- Battery state-of-charge model.
-- Crane sequence for battery removal, storage, fetching, and installation.
-- Batteries recharge while on charger pads.
-- Live KPIs and configurable simulation controls.
-- Battery drain test tool for forcing a selected machine to 0 percent SOC.
-
-## Tech stack
-
-- React
+- React 18
 - TypeScript
 - Vite
-- HTML Canvas
-- Lucide React icons
+- HTML5 Canvas for rendering (`src/render/`)
 
-## Quick start
+## Getting Started
 
-```bash
-npm install
-npm run dev
-```
-
-The development server is configured to run on port 3000.
-
-Build and preview:
-
-```bash
-npm run build
-npm run preview
-```
-
-## Documentation
-
-- [Overview](docs/overview.md)
-- [Running locally](docs/running-locally.md)
-- [Simulation model](docs/simulation-model.md)
-- [Architecture](docs/architecture.md)
-- [Controls and KPIs](docs/controls-and-kpis.md)
-- [Roadmap](docs/roadmap.md)
-- [Changelog](docs/changelog.md)
-
-## Current limitations
-
-- The charging bay still uses generic charger/storage pads.
-- Real Type 1 and Type 2 charging station rules are not fully modelled yet.
-- Charging points are not yet separate from battery pads.
-- Vehicle movement is waypoint-based.
-- Traffic rules, inertia, safe following distance, stop signs, yield points, and lane conflict zones are not implemented yet.
-- Vehicles may overlap visually.
-- Charger utilisation is still based on simplified assumptions.
-- There is no backend, database, persistent save/load, or scenario file import/export.
-
-## Development principle
-
-Keep the prototype playable, but keep improving the structure. The next steps are documentation, refactor, traffic simulation, and then a more truthful charging-station model.
+1. Install dependencies: `npm install`
+2. Start the development server: `npm run dev`
+3. Build for production: `npm run build`
