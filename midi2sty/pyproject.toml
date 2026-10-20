@@ -1,0 +1,20 @@
+[project]
+name = "midi2sty"
+version = "0.1.0"
+description = "Convert a MIDI song into a Yamaha SFF1 style file (.sty) for the DGX-630"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+midi2sty = "midi2sty.cli:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
