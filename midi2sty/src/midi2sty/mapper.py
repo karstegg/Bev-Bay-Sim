@@ -53,7 +53,7 @@ class MapOptions:
     sections: tuple[str, ...] = DEFAULT_SECTIONS
     intro_bars: int = 2
     ending_bars: int = 2
-    similarity: float = 0.5      # Jaccard threshold for grouping blocks into one Main
+    similarity: float = 0.8      # Jaccard threshold for grouping blocks into one Main
     transpose: bool = True
 
 
