@@ -139,6 +139,8 @@ def parse_smf(data: bytes) -> SmfFile:
 
 
 def _encode_track(events: list[MidiEvent]) -> bytes:
+    explicit_end = max((e.tick for e in events if e.kind == META and e.meta_type == 0x2F),
+                       default=0)  # an EOT event in the input only sets where the track ends
     evs = [e for e in events if not (e.kind == META and e.meta_type == 0x2F)]
     evs = sorted(evs, key=lambda e: e.tick)  # stable
     out = bytearray()
@@ -156,7 +158,7 @@ def _encode_track(events: list[MidiEvent]) -> bytes:
             out.append(e.a & 0x7F)
             if _DATA_LEN[st & 0xF0] == 2:
                 out.append(e.b & 0x7F)
-    end = max((e.tick for e in evs), default=0)
+    end = max(max((e.tick for e in evs), default=0), explicit_end)
     out += _vlq(end - last) + b"\xFF\x2F\x00"
     return bytes(out)
 

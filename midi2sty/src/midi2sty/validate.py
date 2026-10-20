@@ -51,8 +51,9 @@ def validate_sty(data: bytes) -> list[str]:
             sub = _split_chunks(c, 0)
             sdec += [b.decode("ascii", "replace") for t, b in sub if t == b"Sdec"]
             n_ctab = sum(t == b"Ctab" for t, _ in sub)
-            if n_ctab != 8:
-                problems.append(f"CSEG has {n_ctab} Ctab chunks, expected 8")
+            n_cntt = sum(t == b"Cntt" for t, _ in sub)
+            if n_ctab == 0 or n_ctab != n_cntt:
+                problems.append(f"CSEG has {n_ctab} Ctab but {n_cntt} Cntt chunks")
             if any(t == b"Ctab" and len(b) != 27 for t, b in sub):
                 problems.append("Ctab length is not 27")
         missing = {m for _, m in sections} - set(sdec)

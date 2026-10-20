@@ -17,16 +17,18 @@ NTT_BYPASS, NTT_MELODY, NTT_CHORD, NTT_BASS = 0, 1, 2, 3
 RTR_STOP, RTR_PITCH_SHIFT, RTR_PITCH_SHIFT_ROOT = 0, 1, 2
 CHORD_ROOT_C, CHORD_TYPE_MAJ7 = 0, 2
 
-# role -> (ntr, ntt, rtr, rhythm?)
+# role -> (ntr, ntt, high_key, note_low, note_high, rtr, rhythm?)
+# Values copied from real Yamaha-format tables (Audio Phraser demo): rhythm = Root Fixed/Bypass,
+# bass = Root Trans/Bass/RTR pitch-shift-to-root, chord parts = Root Fixed/Chord.
 _ROLE_RULES = {
-    "RHY1": (NTR_BYPASS, NTT_BYPASS, RTR_STOP, True),
-    "RHY2": (NTR_BYPASS, NTT_BYPASS, RTR_STOP, True),
-    "BASS": (NTR_ROOT_TRANS, NTT_BASS, RTR_PITCH_SHIFT_ROOT, False),
-    "CHD1": (NTR_ROOT_TRANS, NTT_CHORD, RTR_PITCH_SHIFT, False),
-    "CHD2": (NTR_ROOT_TRANS, NTT_CHORD, RTR_PITCH_SHIFT, False),
-    "PAD": (NTR_ROOT_TRANS, NTT_CHORD, RTR_PITCH_SHIFT, False),
-    "PHR1": (NTR_ROOT_TRANS, NTT_MELODY, RTR_PITCH_SHIFT, False),
-    "PHR2": (NTR_ROOT_TRANS, NTT_MELODY, RTR_PITCH_SHIFT, False),
+    "RHY1": (NTR_ROOT_FIXED, NTT_BYPASS, 0x06, 0x00, 0x7F, RTR_PITCH_SHIFT, True),
+    "RHY2": (NTR_ROOT_FIXED, NTT_BYPASS, 0x06, 0x00, 0x7F, RTR_PITCH_SHIFT, True),
+    "BASS": (NTR_ROOT_TRANS, NTT_BASS, 0x08, 0x1C, 0x7F, RTR_PITCH_SHIFT_ROOT, False),
+    "CHD1": (NTR_ROOT_FIXED, NTT_CHORD, 0x07, 0x00, 0x7F, RTR_PITCH_SHIFT, False),
+    "CHD2": (NTR_ROOT_FIXED, NTT_CHORD, 0x07, 0x00, 0x7F, RTR_PITCH_SHIFT, False),
+    "PAD": (NTR_ROOT_FIXED, NTT_CHORD, 0x07, 0x00, 0x7F, RTR_PITCH_SHIFT, False),
+    "PHR1": (NTR_ROOT_TRANS, NTT_MELODY, 0x07, 0x00, 0x7F, RTR_PITCH_SHIFT, False),
+    "PHR2": (NTR_ROOT_TRANS, NTT_MELODY, 0x07, 0x00, 0x7F, RTR_PITCH_SHIFT, False),
 }
 _DEFAULT_PROGRAM = {"RHY1": 0, "RHY2": 0, "BASS": 33, "CHD1": 0, "CHD2": 25,
                     "PAD": 89, "PHR1": 56, "PHR2": 73}
@@ -45,12 +47,13 @@ def _marker(tick: int, text: str) -> MidiEvent:
 
 
 def _setup_events(style: model.Style, name: str) -> list[MidiEvent]:
-    ev = [_meta(0, 0x03, name.encode("ascii", "replace")[:32]),
-          _marker(0, "SFF2"), _marker(0, "SInt")]
-    usec = int(round(60_000_000 / style.tempo_bpm))
-    ev.append(_meta(0, 0x51, usec.to_bytes(3, "big")))
     num, den = style.time_sig
-    ev.append(_meta(0, 0x58, bytes([num, den.bit_length() - 1, 24, 8])))
+    usec = int(round(60_000_000 / style.tempo_bpm))
+    ev = [_meta(0, 0x58, bytes([num, den.bit_length() - 1, 24, 8])),
+          _meta(0, 0x51, usec.to_bytes(3, "big")),
+          _marker(0, "SFF2"),
+          _meta(0, 0x03, name.encode("ascii", "replace")[:32].ljust(32, b"\0")),
+          _marker(0, "SInt")]
     ev.append(MidiEvent(0, SYSEX, a=0xF0, data=GM_RESET))
     ev.append(MidiEvent(0, SYSEX, a=0xF0, data=XG_ON))
     programs = {}
@@ -91,7 +94,7 @@ def _chunk(tag: bytes, body: bytes) -> bytes:
 
 
 def _ctab(role: str) -> bytes:
-    ntr, ntt, rtr, rhythm = _ROLE_RULES[role]
+    ntr, ntt, hk, lo, hi, rtr, rhythm = _ROLE_RULES[role]
     ch = model.STYLE_CHANNELS[role]
     b = bytearray(27)
     b[0] = ch
@@ -103,16 +106,16 @@ def _ctab(role: str) -> bytes:
     b[14:18] = b"\xff\xff\xff\xff"
     b[18], b[19] = CHORD_ROOT_C, CHORD_TYPE_MAJ7
     b[20], b[21] = ntr, ntt
-    b[22] = 0x08                               # high key (F)
-    b[23], b[24] = 0x00, 0x7F                  # note range
+    b[22] = hk
+    b[23], b[24] = lo, hi
     b[25] = rtr
     return _chunk(b"Ctab", bytes(b))
 
 
 def _cntt(role: str) -> bytes:
-    _, ntt, _, _ = _ROLE_RULES[role]
-    return _chunk(b"Cntt", bytes([model.STYLE_CHANNELS[role],
-                                  ntt | (0x80 if role == "BASS" else 0)]))
+    ntt = _ROLE_RULES[role][1]
+    # observed: bass parts are 0x81, everything else carries its NTT value
+    return _chunk(b"Cntt", bytes([model.STYLE_CHANNELS[role], 0x81 if ntt == NTT_BASS else ntt]))
 
 
 def _casm(style: model.Style) -> bytes:
@@ -130,10 +133,11 @@ def write_sty(style: model.Style, name: str = "midi2sty") -> bytes:
     if not style.sections:
         raise ValueError("style has no sections")
     events = _setup_events(style, name)
-    pos = 0
+    num, den = style.time_sig
+    pos = num * model.TICKS_PER_BEAT * 4 // den   # real files leave one bar for SInt
     for sec in style.sections:
         events += _section_events(sec, pos)
         pos += sec.length_ticks
-    events.append(_marker(pos, "Fine"))
+    events.append(MidiEvent(pos, META, meta_type=0x2F))  # track ends exactly at last section end
     smf = write_smf([events], model.TICKS_PER_BEAT, fmt=0)
     return smf + _casm(style)

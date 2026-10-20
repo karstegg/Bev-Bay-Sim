@@ -24,7 +24,8 @@ def test_sections_sequential_and_channels():
     smf = parse_smf(write_sty(_style()))
     ev = smf.tracks[0]
     marks = {e.data.decode(): e.tick for e in ev if e.kind == META and e.meta_type == 6}
-    assert marks["Intro A"] == 0 and marks["Main A"] == BAR * 2 and marks["Ending A"] == BAR * 4
+    assert marks["Intro A"] == BAR and marks["Main A"] == BAR * 3 and marks["Ending A"] == BAR * 5
+    assert ev[-1].tick == BAR * 7 or max(e.tick for e in ev) == BAR * 7
     assert {e.channel for e in ev if e.kind == NOTE_ON} == {8, 10}
 
 
