@@ -44,6 +44,7 @@ PERC = frozenset(range(54, 55)) | {56, 58} | set(range(60, 88))
 DEFAULT_BARS = {"Main A": 4, "Main B": 4, "Main C": 4, "Main D": 4,
                 "Fill In AA": 1, "Fill In BB": 1, "Fill In CC": 1, "Fill In DD": 1, "Fill In BA": 1,
                 "Intro A": 1, "Intro B": 2, "Intro C": 4, "Ending A": 2, "Ending B": 2, "Ending C": 4}
+FILL_MIN_DISSIMILARITY = 0.2   # below this the song's transition bar is just the groove: derive a fill instead
 FILL_SRC = {"Fill In AA": "Main A", "Fill In BB": "Main B", "Fill In CC": "Main C",
             "Fill In DD": "Main D", "Fill In BA": "Main B"}
 
@@ -190,11 +191,56 @@ def suggest_recipe(song: model.Song) -> Recipe:
     return recipe
 
 
+_DRUM_CLASS = {**{p: "K" for p in (35, 36)}, **{p: "S" for p in (37, 38, 39, 40)},
+               **{p: "T" for p in TOMS}, **{p: "H" for p in (42, 44, 46)},
+               **{p: "C" for p in CRASH}, **{p: "R" for p in CYMBAL}}
+
+
+def _bar_features(song, plans):
+    """Per song bar: set of (16th step, class) onsets over every non-excluded track, plus tom/crash counts."""
+    bl, nb = melody.bar_ticks(song), max(melody.n_bars(song), 1)
+    sets = [set() for _ in range(nb)]
+    toms = [0] * nb
+    for t in song.tracks:
+        p = plans.get(t.index)
+        if p is not None and p.role in (EXCLUDE, FILL_ONLY):
+            continue
+        for n in t.notes:
+            b = n.start // bl
+            if b >= nb:
+                continue
+            c = _DRUM_CLASS.get(n.pitch, "o") if t.is_drums else "p" + str(t.index)
+            sets[b].add((n.start % bl * 16 // bl, c))
+            toms[b] += t.is_drums and n.pitch in TOMS
+    return sets, toms
+
+
+def _fill_dissimilarity(sets, toms, b, groove):
+    if b < 0 or b >= len(sets) or len(sets[b]) < 3:
+        return -1.0
+    best = max((len(sets[b] & sets[g]) / max(1, len(sets[b] | sets[g])) for g in groove if 0 <= g < len(sets)),
+               default=0.0)
+    return (1.0 - best) + 0.05 * min(toms[b], 6)
+
+
+def pick_song_fill(song, plans, a: int, n: int):
+    """The song's own transition bar for the Main at song bars [a, a+n): the bar leading into it (a-1) or
+    the bar right after the block (a+n). Returns (bar, score) or None when the song has no distinct one."""
+    sets, toms = _bar_features(song, plans)
+    groove = range(a, a + n)
+    cands = [(_fill_dissimilarity(sets, toms, b, groove) + (0.05 if b == a - 1 else 0.0), b)
+             for b in (a - 1, a + n) if b >= 0]
+    if not cands:
+        return None
+    score, b = max(cands)
+    return (b, score) if score >= FILL_MIN_DISSIMILARITY else None
+
+
 def _suggest_sections(song, props, plans) -> list[SectionPlan]:
     out: list[SectionPlan] = []
 
-    def add(name, source="auto", a=None, n=None, frm=None):
-        out.append(SectionPlan(name, source, a, n, frm))
+    def add(name, source="auto", a=None, n=None, frm=None, note=""):
+        out.append(SectionPlan(name, source, a, n, frm, note))
 
     found = [(m, props[m]) for m in MAINS if m in props]
     k = len(found)
@@ -213,19 +259,37 @@ def _suggest_sections(song, props, plans) -> list[SectionPlan]:
         add("Main A", "derive", frm="Main B")
         add("Main C", "derive", frm="Main B")
         add("Main D", "derive", frm="Main B")
+    bars_of = {p.name: (p.start_bar, p.n_bars or 4) for p in out if p.source == "song"}
     for f, src in FILL_SRC.items():
-        add(f, "derive", frm=src)
+        main = src
+        if f == "Fill In BA":          # stop/fill into Main A: the song's own bar before Main A when it has one
+            main = "Main A"
+        pick = None
+        if f != "Fill In BA" and main in bars_of:
+            pick = pick_song_fill(song, plans, *bars_of[main])
+        elif f == "Fill In BA" and "Fill In AA" in {p.name for p in out}:
+            pick = None
+        if pick:
+            add(f, "song", pick[0], 1, note=f"song bar {pick[0] + 1}: the song's own transition bar (change score {pick[1]:.2f})")
+        else:
+            add(f, "derive", frm=src, note="no distinct fill in the song here: derived from the Main's last bar")
     add("Intro A")
-    add("Intro B", "derive", frm="Main A", n=2)
+    if "Intro C" in props and props["Intro C"][1] >= 4:
+        a, n = props["Intro C"]
+        add("Intro B", "song", a + n - 2, 2, note="the last 2 bars of the song's own intro")
+    else:
+        add("Intro B", "derive", frm="Main A", n=2)
     if "Intro C" in props:
-        add("Intro C", "song", *props["Intro C"])
+        add("Intro C", "song", *props["Intro C"], note="the song's own intro")
     else:
         add("Intro C", "derive", frm="Main B", n=4)
     add("Ending A")
-    add("Ending B", "derive", frm="Main B", n=2)
     if "Ending C" in props and _winds_down(song, props["Ending C"], plans):
-        add("Ending C", "song", *props["Ending C"])
+        a, n = props["Ending C"]
+        add("Ending B", "song", a + n - 2, 2, note="the last 2 bars of the song")
+        add("Ending C", "song", a, n, note="the song's own ending")
     else:
+        add("Ending B", "derive", frm="Main B", n=2)
         add("Ending C", "derive", frm="Main D", n=4)
     return out
 
@@ -564,8 +628,14 @@ def build_style(song: model.Song, recipe: Recipe) -> Style:
         n = nbars(f)
         if pl and pl.source == "song" and pl.start_bar is not None:
             p = ctx.slice("chord", pl.start_bar, n)
-            if has_drums and not any(x.pitch in CRASH and x.start >= p.n * bl - 120 for x in p.ch.get("RHY2", [])):
-                _crash(p, bl)
+            if has_drums and not any(x.pitch in CRASH and x.start >= p.n * bl - 120
+                                     for r in ("RHY1", "RHY2") for x in p.ch.get(r, [])):
+                # the song's crash on the downbeat after the fill becomes the pickup crash that ends the fill
+                after = ctx.slice("chord", pl.start_bar + n, 1)
+                hit = [x for r in ("RHY1", "RHY2") for x in after.ch.get(r, [])
+                       if x.pitch in CRASH and x.start < bl // 16]
+                if hit:
+                    _crash(p, bl, max(x.vel for x in hit))
             pats[f] = p
             continue
         src = pl.derive_from if pl and pl.derive_from in MAINS else default

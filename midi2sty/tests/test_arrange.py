@@ -128,8 +128,18 @@ def test_drum_split_and_roles():
     assert not any(c.role in ("PHR1", "PHR2") for c in s.channels)   # lead excluded
 
 
+def _derived_fills_recipe(song):
+    recipe = arrange.suggest_recipe(song)
+    for pl in recipe.sections:
+        if pl.name.startswith("Fill In"):
+            pl.source, pl.start_bar, pl.n_bars = "derive", None, None
+            pl.derive_from = arrange.FILL_SRC[pl.name]
+    return recipe
+
+
 def test_fills_have_crash_toms_and_keep_pitched():
-    style, _ = style_of(make_song())
+    song = make_song()
+    style, _ = style_of(song, _derived_fills_recipe(song))
     for f in ("Fill In AA", "Fill In BB", "Fill In CC", "Fill In DD"):
         s = sec(style, f)
         r2 = chan(s, "RHY2")
@@ -274,3 +284,23 @@ def test_real_songs_build_and_validate(path):
     except ImportError:
         pytest.skip("writer unavailable")
     assert validate_sty(write_sty(style)) == []
+
+
+def _song_with_real_fill():
+    """4-bar groove at bars 4-7 preceded by a distinct tom-fill bar 3 (kick+toms+crash at the end)."""
+    song = make_song()
+    drums = next(t for t in song.tracks if t.is_drums)
+    bl = BAR
+    drums.notes = [n for n in drums.notes if not (2 * bl <= n.start < 3 * bl)]
+    for i, p in enumerate((45, 43, 41, 41)):
+        drums.notes.append(Note(2 * bl + (8 + i * 2) * bl // 16, 60, p, 90))
+    drums.notes.append(Note(2 * bl, 60, 36, 100))
+    drums.notes.append(Note(3 * bl, 100, 49, 111))      # crash on the downbeat of the next section
+    return song
+
+
+def test_pick_song_fill_prefers_the_songs_own_transition_bar():
+    song = _song_with_real_fill()
+    plans = {p.index: p for p in arrange.suggest_recipe(song).tracks}
+    pick = arrange.pick_song_fill(song, plans, 3, 4)
+    assert pick is not None and pick[0] == 2

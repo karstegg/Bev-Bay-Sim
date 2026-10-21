@@ -36,6 +36,7 @@ class SectionPlan:
     start_bar: int | None = None
     n_bars: int | None = None                # None = canonical default length for the section type
     derive_from: str | None = None
+    note: str = ""                           # human-readable why (shown in the UI), e.g. "song bar 34 (best fill candidate, 0.62)"
 
 
 @dataclass
