@@ -121,3 +121,36 @@ if __name__ == '__main__':
     song = parse(sys.argv[1]); sty = parse(sys.argv[2]); shift = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     for k, v in match(song, sty, shift).items():
         print(k[0], 'ch', k[1]+1, fmt(song, v[:2]))
+
+
+# ---------------------------------------------------------------- exact-pitch per-bar matcher
+def xbars(notes, ppq, bar, shift=0):
+    """{bar: Counter{(16th slot, absolute pitch+shift)}}"""
+    out = collections.defaultdict(collections.Counter)
+    for s, e, p, v in notes:
+        b, r = divmod(s, bar)
+        out[b][(round(r / (ppq/4)), p + shift)] += 1
+    return out
+
+def xmatch(song, style, secname, ch, shifts=(-13, -12, -1, 0, 1, 3, 11, 12), pcmode=False):
+    """For each bar of style section `secname` on style channel ch (0-based 8..15) -> best
+    (score, song track idx, song ch, song bar, shift) by exact (slot,pitch) similarity. Songs are
+    assumed bar-aligned with the style (same time signature)."""
+    sp, yp = song['ppq'], style['ppq']; yt = style['tracks'][0]
+    ybar = yp*4; sbar = sp*4
+    a, b = {n: (a, b) for n, a, b in sections(yt)}[secname]
+    sec = [(s-a, e-a, p, v) for s, e, p, v in yt['notes'].get(ch, []) if a <= s < b]
+    Y = xbars(sec, yp, ybar)
+    cands = {}
+    for sh in shifts:
+        for ti, tr in enumerate(song['tracks']):
+            for sch, ns in tr['notes'].items():
+                if (sch == 9) != (ch < 10): continue
+                cands[(ti, sch, sh)] = xbars(ns, sp, sbar, 0 if sch == 9 else sh)
+    out = []
+    for i in range((b-a)//ybar):
+        y = Y.get(i)
+        if not y: out.append(None); continue
+        best = max(((sim(y, C[bb]), ti, sch, bb, sh) for (ti, sch, sh), C in cands.items() for bb in C))
+        out.append(best)
+    return out

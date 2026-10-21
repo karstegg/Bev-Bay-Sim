@@ -37,7 +37,8 @@ FILL_MAIN = {"Fill In AA": "Main A", "Fill In BB": "Main B", "Fill In CC": "Main
              "Fill In DD": "Main D", "Fill In BA": "Main B"}
 # GM / XG drum note classes
 DRUM = {"kick": {35, 36}, "snare": {37, 38, 39, 40}, "tom": {41, 43, 45, 47, 48, 50},
-        "hat": {42, 44, 46}, "crash": {49, 55, 57, 52}, "ride": {51, 53, 59}}
+        "hat": {42, 44, 46}, "crash": {49, 55, 57, 52}, "ride": {51, 53, 59},
+        "perc": {54, 56, 58, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84}}
 NONSEC = {b"SFF1", b"SFF2", b"SInt"}
 
 
@@ -173,6 +174,14 @@ def load_style(path):
         for n in names:
             f["tables"].setdefault(n, []).extend(tabs)
             f["cntt"].setdefault(n, []).extend(ntts)
+    # Notes on alt source channels (1-8) are attributed to the destination channel of that section's table,
+    # so every later statistic is per ROLE (dest ch 9-16). n["src"] keeps the original channel.
+    for s in secs:
+        m = {t["src"]: t["dest"] for t in f["tables"].get(s["name"], []) if 8 <= t["dest"] <= 15}
+        for n in s["notes"]:
+            n["src"] = n["ch"]
+            n["ch"] = m.get(n["ch"], n["ch"])
+    f["notes"] = [n for s in secs for n in s["notes"]]
     return f
 
 
@@ -214,13 +223,13 @@ def a1_channels(files):
             used = sum(1 for f, s in have if any(n["ch"] == ch for n in s["notes"]))
             npb = fmean([sum(1 for n in s["notes"] if n["ch"] == ch) / s["bars"] for f, s in have])
             cells.append(f"{used / len(have):.2f} / {npb:.1f}")
-        alt = fmean([sum(1 for n in s["notes"] if n["ch"] < 8) / s["bars"] for f, s in have])
-        altf = sum(1 for f, s in have if any(n["ch"] < 8 for n in s["notes"])) / len(have)
+        alt = fmean([sum(1 for n in s["notes"] if n["src"] < 8) / s["bars"] for f, s in have])
+        altf = sum(1 for f, s in have if any(n["src"] < 8 for n in s["notes"])) / len(have)
         bars = collections.Counter(round(s["bars"], 2) for f, s in have)
         rows.append([st_, len(have), ", ".join(f"{b:g}b x{c}" for b, c in sorted(bars.items()))] + cells
                     + [f"{altf:.2f} / {alt:.1f}"])
     return "cell = fraction of files with notes on that channel / mean notes per bar\n\n" + md(
-        rows, ["section", "n", "length (bars) x files"] + ROLES + ["ch1-8 (alt src)"])
+        rows, ["section", "n", "length (bars) x files"] + ROLES + ["share via alt src ch1-8 (files / notes per bar)"])
 
 
 def a2_fills(files):
@@ -231,8 +240,12 @@ def a2_fills(files):
     vel = collections.defaultdict(list)
     crash_pos = collections.Counter()
     pairs = 0
+    endcrash = collections.Counter()
+    clsvel = collections.defaultdict(list)
+    sim = collections.defaultdict(list)
     other_only = 0
     fills = 0
+    tick_gaps = []
     fill_chan_notes = collections.Counter()
     main_chan_npb = collections.defaultdict(list)
     fill_chan_npb = collections.defaultdict(list)
@@ -264,6 +277,27 @@ def a2_fills(files):
             for c in list(DRUM) + ["other"]:
                 cls_fill[c].append(sum(1 for n in rh_f if drum_class(n["p"]) == c) / fs_["bars"])
                 cls_main[c].append(sum(1 for n in rh_m if drum_class(n["p"]) == c) / ms["bars"])
+            for n in rh_f:
+                clsvel["fill " + drum_class(n["p"])].append(n["v"])
+            for n in rh_m:
+                clsvel["main " + drum_class(n["p"])].append(n["v"])
+            ec = [n for n in rh_f if drum_class(n["p"]) == "crash" and (fs_["end"] - n["t"]) <= f["beat"] // 8]
+            endcrash["fills with crash within 1/8 beat of section end"] += bool(ec)
+            endcrash["  ... of which on RHY2 (ch10)"] += any(n["ch"] == 9 for n in ec)
+            endcrash["  ... of which on RHY1 (ch9)"] += any(n["ch"] == 8 for n in ec)
+            endcrash["  ... mean gap to end (ticks@1920ppq-equivalent)"] += 0
+            tick_gaps.extend(round((fs_["end"] - n["t"]) * 1920 / f["ppq"]) for n in ec)
+            for ch in range(10, 16):
+                a = {(round((n["t"] - fs_["start"]) / (f["ppq"] // 8)), n["p"]) for n in fn_ if n["ch"] == ch}
+                if not a:
+                    continue
+                bestj = 0
+                for k in range(int(ms["bars"])):
+                    o = ms["start"] + k * f["bar"]
+                    b = {(round((n["t"] - o) / (f["ppq"] // 8)), n["p"]) for n in mn_ if n["ch"] == ch and o <= n["t"] < o + f["bar"]}
+                    if b:
+                        bestj = max(bestj, len(a & b) / len(a | b))
+                sim[ch].append(bestj)
             vel["fill rhythm"] += [n["v"] for n in rh_f]
             vel["main rhythm"] += [n["v"] for n in rh_m]
             vel["fill non-rhythm"] += [n["v"] for n in fn_ if n["ch"] > 9]
@@ -300,6 +334,16 @@ def a2_fills(files):
         f"{k}: {fmean(v):.0f}/{min(v)}/{max(v)}" for k, v in vel.items() if v))
     out.append("\nCrash / ending behaviour (count of fill/main pairs): "
                + ", ".join(f"{k}={v}" for k, v in crash_pos.items()))
+    endcrash.pop("  ... mean gap to end (ticks@1920ppq-equivalent)")
+    out.append("\nCrash at the very end of the fill bar (pickup that sounds on the next downbeat): "
+               + ", ".join(f"{k.strip()}={v}/{fills}" for k, v in endcrash.items())
+               + f"; gap to section end in ticks@1920 PPQ: {dict(collections.Counter(tick_gaps).most_common(4))}")
+    out.append("\nMean velocity by drum class (rhythm channels), main -> fill: " + "; ".join(
+        f"{c}: {fmean(clsvel['main ' + c]):.0f} -> {fmean(clsvel['fill ' + c]):.0f}" for c in list(DRUM) + ["other"]
+        if clsvel["main " + c] or clsvel["fill " + c]))
+    out.append("\nNon-rhythm channels in a fill: best same-grid (1/8 beat) Jaccard similarity of the fill bar with ANY bar of its Main "
+               "(median / share >= 0.9): " + "; ".join(
+                   f"{ROLES[ch - 8]} {st.median(v):.2f} / {sum(x >= .9 for x in v) / len(v):.0%}" for ch, v in sim.items() if v))
     out.append(f"\nFills where ONLY ch9/ch10 carry notes: {other_only}/{fills} ({pct(other_only, fills)})")
     # first/last bar of main for comparison: where main notes density in last bar vs rest
     return "\n".join(out)
@@ -349,11 +393,47 @@ def a3_intro_end(files):
                      pct(longfinal, n), f"{fmean(final_dur):.1f}",
                      f"{fmean(last_onset_gap):.2f}", pct(stop_last, n),
                      pct(noteoff_before, n), overhang, tempo_in])
+    extra = []
+    for st_ in ["Intro A", "Intro B", "Intro C", "Ending A", "Ending B", "Ending C"]:
+        have = [(f, s) for f in files for s in f["secs"] if s["name"] == st_]
+        tails, atbar, held, hold, nfin, ritn, ritlen, ritmin, ritstart, endcr, nstep = [], 0, 0, [], [], 0, [], [], [], 0, []
+        for f, s in have:
+            nn = sec_notes(s)
+            if not nn:
+                continue
+            lt = max(x["t"] for x in nn)
+            tails.append((s["end"] - lt) / f["beat"])
+            atbar += abs(((lt - s["start"]) % f["bar"])) <= f["ppq"] // 8
+            fin = [x for x in nn if x["t"] >= lt - f["ppq"] // 8]
+            nfin.append(len(fin))
+            endcr += any(x["ch"] < 10 and drum_class(x["p"]) == "crash" for x in fin)
+            pit = [x for x in nn if x["ch"] >= 10 and x["off"] is not None]
+            if pit:
+                lo = max(x["off"] for x in pit)
+                held += (s["end"] - lo) <= f["beat"]
+                hold.append(max((x["off"] - x["t"]) for x in pit) / f["beat"])
+            base = next(60e6 / int.from_bytes(e[3], "big") for e in f["ev"] if e[1] == "meta" and e[2] == 0x51)
+            tem = [(e[0], 60e6 / int.from_bytes(e[3], "big")) for e in f["ev"] if e[1] == "meta" and e[2] == 0x51
+                   and s["start"] < e[0] < s["end"]]
+            if len(tem) >= 3 and tem[-1][1] < tem[0][1]:
+                ritn += 1
+                ritlen.append((tem[-1][0] - tem[0][0]) / f["beat"])
+                ritmin.append(min(b for _, b in tem) / base)
+                ritstart.append((s["end"] - tem[0][0]) / f["beat"])
+                nstep.append(len(tem))
+        n = len(have)
+        m = lambda v, fmt="{:.1f}": fmt.format(st.median(v)) if v else "-"
+        extra.append([st_, n, m(tails), pct(atbar, n), m(nfin, "{:.0f}"), pct(endcr, n), pct(held, n), m(hold),
+                      f"{ritn}/{n}", m(nstep, "{:.0f}"), m(ritlen), m(ritstart), m(ritmin, "{:.2f}")])
+    head2 = ["section", "n", "median beats from last onset to end", "last onset on a bar start", "notes in final hit (median)",
+             "final hit has crash", "last pitched note-off within 1 beat of end", "longest pitched note (beats, median)",
+             "tempo ramp (>=3 decreasing tempo events)", "ramp steps", "ramp length (beats)", "ramp starts N beats before end",
+             "min tempo / base tempo"]
     head = ["section", "n", "rhythm", "bass", "chord(11-13)", "phrase", "rhythm ONLY", "crash any", "crash 1st beat",
             "crash last bar", "final pitched note >=2 beats & ends at bar end", "final pitched dur (beats)",
             "mean gap last onset->end (beats)", "last beat silent (no onset)", "all note-offs <= end",
             "notes overhanging end", "tempo changes inside"]
-    return md(rows, head)
+    return md(rows, head) + "\n\nTails and ritardando:\n\n" + md(extra, head2)
 
 
 def _cc_name(c):
@@ -389,6 +469,15 @@ def a4_setup(files):
         for (ch, k), v in seen.items():
             ctr[(ch, k)][v] += 1
         f["_setup"] = seen
+    spread = collections.defaultdict(list)
+    for f in files:
+        first = f["secs"][0]["start"]
+        ticks = [e[0] for e in f["ev"] if e[0] < first and e[1] in ("ch", "sysex")]
+        spread[f["fmt"]].append(max(ticks) if ticks else 0)
+    out.append("Setup layout: last setup event tick before first section (min/median/max over files, bar = "
+               + str(files[0]["bar"]) + " ticks): " + "; ".join(
+                   f"{k}: {min(v)}/{st.median(v):g}/{max(v)} ({sum(x == 0 for x in v)}/{len(v)} files entirely at tick 0)"
+                   for k, v in sorted(spread.items())) + "\n")
     out.append("Setup = every event before the first section marker (tick 0 .. SInt .. one blank bar).\n")
     out.append("Per channel (ch9-16): value frequency across files (value:count). n=" + str(len(files)))
     rows = []
@@ -503,14 +592,21 @@ def _a5_one(files):
     out.append("CSEG count per file: " + str(dict(collections.Counter(len(f["casm"]) for f in files))))
     ntab = collections.Counter(len(tabs) for f in files for names, tabs, _ in f["casm"])
     out.append("Ctab count per CSEG (n tables: CSEGs): " + str(dict(sorted(ntab.items()))))
+    sd = collections.Counter()
+    for f in files:
+        for names, tabs, _ in f["casm"]:
+            sd[", ".join(sorted(names, key=lambda x: SECTION_TYPES.index(x) if x in SECTION_TYPES else 99))] += 1
+    out.append("Sdec groupings (CSEGs): " + "; ".join(f"[{k}] x{v}" for k, v in sd.most_common(8)))
+    dup = sum(1 for f in files for n in SECTION_TYPES if sum(n in names for names, _, _ in f["casm"]) > 1)
+    out.append(f"Sections listed in more than one CSEG: {dup}")
     # sections with no table
     miss = collections.Counter(s["name"] for f in files for s in f["secs"] if s["name"] not in f["tables"])
     out.append("Sections without any CASM table: " + (str(dict(miss)) or "none"))
-    srcd = collections.Counter((t["src"] >= 8, t["src"] == t["dest"]) for f in files for ts in f["tables"].values() for t in ts)
+    srcd = collections.Counter(("src>=8" if t["src"] >= 8 else "src<8 (alt source ch1-8)", "src==dest" if t["src"] == t["dest"] else "src!=dest") for f in files for ts in f["tables"].values() for t in ts)
     out.append("Table (src>=8, src==dest) counts: " + str(dict(srcd)))
     # per role and group
-    sroot = collections.Counter((t["sroot"], t["stype"]) for f in files for ts in f["tables"].values() for t in ts if t["src"] >= 8)
-    out.append("Source chord (root, type) over main-channel tables: " + str(dict(sroot.most_common(8))))
+    sroot = collections.Counter((t["sroot"], t["stype"]) for f in files for ts in f["tables"].values() for t in ts if True)
+    out.append("Source chord (root, type) over all tables: " + str(dict(sroot.most_common(8))))
     edit = collections.Counter(t["edit"] for f in files for ts in f["tables"].values() for t in ts)
     out.append("Editable byte (b10): " + str(dict(edit)))
     extra = collections.Counter(t["extra"] for f in files for ts in f["tables"].values() for t in ts)
@@ -530,7 +626,7 @@ def _a5_one(files):
                     if GROUP_OF.get(s["name"]) != g:
                         continue
                     for t in f["tables"].get(s["name"], []):
-                        if t["src"] == ch:
+                        if t["dest"] == ch:
                             for fld in ("ntr", "ntt", "hk", "rtr", "lo", "hi", "cmute"):
                                 v = t[fld]
                                 seen[fld].add(f"{v:x}" if fld in ("lo", "hi") else v)
@@ -566,7 +662,7 @@ def _a5_one(files):
     out.append("\n#### Field-wise distribution per role (all tables, src>=8)\n")
     rows = []
     for ch in range(8, 16):
-        T = [t for f in files for ts in f["tables"].values() for t in ts if t["src"] == ch]
+        T = [t for f in files for ts in f["tables"].values() for t in ts if t["dest"] == ch]
         if not T:
             continue
         row = [ROLES[ch - 8], len(T)]
@@ -587,9 +683,9 @@ def _a5_one(files):
         absent = 0
         for f in files:
             m = f["tables"].get("Main A", [])
-            mt = next((t for t in m if t["src"] == ch), None)
+            mt = next((t for t in m if t["dest"] == ch), None)
             for sn in ("Intro B", "Intro C", "Ending B", "Ending C"):
-                it = next((t for t in f["tables"].get(sn, []) if t["src"] == ch), None)
+                it = next((t for t in f["tables"].get(sn, []) if t["dest"] == ch), None)
                 if mt is None and it is None:
                     continue
                 if mt is None or it is None:
@@ -606,8 +702,8 @@ def _a5_one(files):
     for f in files:
         for sn, ts in f["tables"].items():
             for t in ts:
-                if t["src"] in (10, 11, 12, 13, 14, 15):
-                    cm[(GROUP_OF.get(sn, sn), ROLES[t["src"] - 8])][(t["cmute"], t["nmute"], t["ntt"], t["ntr"])] += 1
+                if t["dest"] in (10, 11, 12, 13, 14, 15):
+                    cm[(GROUP_OF.get(sn, sn), ROLES[t["dest"] - 8])][(t["cmute"], t["nmute"], t["ntt"], t["ntr"])] += 1
     out.append("\n#### (group, role) -> top (chord-mute, note-mute, NTT, NTR) tuples (count of section-table instances)\n")
     rows = []
     for k in sorted(cm):
@@ -622,7 +718,7 @@ def _a5_one(files):
         out.append("NTT raw byte (0x81 = bass flag): " + str(dict(collections.Counter(t["ntt_raw"] for _, t in T2))))
         rows = []
         for ch in range(8, 16):
-            tt = [t for _, t in T2 if t["src"] == ch]
+            tt = [t for _, t in T2 if t["dest"] == ch]
             if not tt:
                 continue
             d2 = sum(t["groups"][1] != t["groups"][0] for t in tt)
@@ -644,7 +740,7 @@ def a6_pitch(files):
             for n in s["notes"]:
                 if n["ch"] < 8:
                     continue
-                t = tabs.get(n["ch"])
+                t = tabs.get(n["src"])
                 root = t["sroot"] if t and t["sroot"] < 12 else 0
                 P[n["ch"]].append(n["p"] - root)
                 PC[n["ch"]][(n["p"] - root) % 12] += 1
@@ -782,17 +878,17 @@ def a8_prs_sty(files, source=None):
         c = fs
         def sc(fn):
             return fmean([fn(f) for f in c])
-        alt = sum(1 for f in c if any(n["ch"] < 8 for n in f["notes"]))
+        alt = sum(1 for f in c if any(n["src"] < 8 for n in f["notes"]))
         tab_alt = sum(1 for f in c if any(t["src"] < 8 for ts in f["tables"].values() for t in ts))
         msb = collections.Counter()
         for f in c:
             for t, k, s_, d in f["ev"]:
-                if t == 0 and k == "ch" and s_ >> 4 == 0xB and d[0] == 0 and (s_ & 15) >= 10:
+                if t < f["secs"][0]["start"] and k == "ch" and s_ >> 4 == 0xB and d[0] == 0 and (s_ & 15) >= 10:
                     msb[d[1]] += 1
         sx = collections.Counter()
         for f in c:
             for t, k, s_, d in f["ev"]:
-                if t == 0 and k == "sysex":
+                if t < f["secs"][0]["start"] and k == "sysex":
                     sx[d[:3].hex()] += 1
         cp = collections.Counter(next((e[3][:21].decode("latin1") for e in f["ev"] if e[1] == "meta" and e[2] == 2), "-") for f in c)
         rows.append([g, len(c), f"{sc(lambda f: f['size']) / 1024:.0f}", f"{sc(lambda f: f['real_len']) / 1024:.0f}",
@@ -804,8 +900,8 @@ def a8_prs_sty(files, source=None):
                      ", ".join(f"{k}:{v}" for k, v in sx.most_common(4)),
                      ", ".join(sorted({tag for f in c for tag, _, _ in f["chunks"]} - {"CASM", "OTSc"})) or "-",
                      str(sorted({f["ppq"] for f in c}))])
-    out = [md(rows, ["group (source / ext / SFF)", "n", "file KB", "MTrk KB", "CASM B", "OTSc B", "notes on ch1-8",
-                     "Ctab src<8", "CSEGs", "bank MSB ch11-16 @0", "sysex prefixes @0", "extra chunks", "PPQ"])]
+    out = [md(rows, ["group (source / ext / SFF)", "n", "file KB", "MTrk KB", "CASM B", "OTSc B", "notes on alt src ch1-8",
+                     "Ctab src<8", "CSEGs", "bank MSB ch11-16 in lead-in bar", "sysex prefixes in lead-in bar", "extra chunks", "PPQ"])]
     return "\n".join(out)
 
 

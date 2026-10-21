@@ -20,6 +20,7 @@ from __future__ import annotations
 import bisect
 import math
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -214,51 +215,50 @@ def part_bar_notes(m: Midi, p: Part) -> dict[int, list]:
 
 # ============================================================ (1) melody / lead detection
 
-GM_LEAD_FAMILIES = (
-    range(56, 80),    # brass (56-63), reed (64-71: sax 64-67, oboe, clarinet), pipe (72-79: flute..)
-    range(80, 88),    # synth lead
-    range(40, 42),    # violin / viola (solo)
-    range(105, 112),  # banjo, shamisen .. ethnic leads (kalimba, fiddle, shanai)
-    range(110, 112),  # fiddle, shanai
-    range(52, 55),    # choir aahs / voice oohs / synth voice (vocals)
-    range(24, 26),    # n/a placeholder, replaced below
-)
-_NAME_LEAD = ("melod", "lead", "vocal", "vox", "voice", "solo", "sax", "flute", "trumpet",
-              "trombone", "violin", "oboe", "clarinet", "harmonica", "whistle", "main",
-              "singer", "chorus", "backing", "bv", "mel", "hook", "theme", "flugel", "horn")
-_NAME_NOT_LEAD = ("bass", "drum", "perc", "kick", "pad", "string", "chord", "comp", "rhythm",
-                  "rhy", "organ", "piano", "pno", "keys", "gtr rhy", "strum", "arp")
+_NAME_LEAD = re.compile(
+    r"melod|\blead|vocal|\bvox\b|voice|\bsolo|\bsax|tenor|alto\b|soprano|flute|whistle|trumpet|"
+    r"trombone|violin|oboe|clarinet|harmonica|theme|\bhook|singer|\bmel\b|flugel|fiddle|piccolo")
+_NAME_NOT_LEAD = re.compile(r"bass|drum|perc|kick|\bpad|string|chord|comp\b|rhythm|rhy\b|organ|"
+                            r"piano|keys|choir|strum|arp")
+_GM_LEAD = set(range(56, 80)) | set(range(80, 88)) | {40, 41, 110, 111, 109, 21, 22, 23}
+# 56-63 brass, 64-71 reeds (sax 64-67), 72-79 pipes, 80-87 synth lead, 40/41 solo violin/viola,
+# 21-23 accordion/harmonica/bandoneon.  Choir/voice (52-54) is treated as backing, not lead.
 
 
 def part_stats(m: Midi, p: Part) -> dict:
-    ns = p.notes
+    ns = p.notes                                    # sorted by start
     nb = m.nbars or 1
-    pitches = [n[2] for n in ns]
-    # polyphony: share of notes that overlap the next-starting one by > 1/16 note
-    sixteenth = m.ppq // 4
-    poly = 0
-    for i in range(len(ns) - 1):
-        a, b = ns[i], ns[i + 1]
-        if b[0] < a[0] + a[1] - sixteenth // 2 and b[0] - a[0] > 0:
-            poly += 1
-        elif b[0] == a[0]:
-            poly += 1
-    simul = Counter(n[0] // max(1, sixteenth // 2) for n in ns)
-    stack = sum(1 for v in simul.values() if v > 1) / max(1, len(simul))
-    # melodic line: successive distinct onsets, top voice
-    tops = {}
-    for n in ns:
-        k = n[0] // max(1, sixteenth // 2)
-        tops[k] = max(tops.get(k, 0), n[2])
-    seq = [tops[k] for k in sorted(tops)]
-    iv = [abs(b - a) for a, b in zip(seq, seq[1:])]
+    pitches = sorted(n[2] for n in ns)
+    win = max(1, m.ppq // 8)                        # notes starting within 1/32 note = one onset
+    starts = [n[0] for n in ns]
+    clusters: list[tuple[int, list[int]]] = []      # (time, indexes)
+    for i, n in enumerate(ns):
+        if clusters and n[0] - clusters[-1][0] <= win:
+            clusters[-1][1].append(i)
+        else:
+            clusters.append((n[0], [i]))
+    # chordness = share of onsets at which >= 3 distinct pitch classes sound together (notes that
+    # are still held count; octave doublings do not).  A lead line is ~0, comping/pads are high.
+    triad = dyad = 0
+    maxdur = max(n[1] for n in ns)
+    slack = m.ppq // 8                              # legato overlap shorter than this is ignored
+    for t, idx in clusters:
+        lo = bisect.bisect_left(starts, t - maxdur)
+        hi = bisect.bisect_right(starts, t + win)
+        pcs = {ns[j][2] % 12 for j in range(lo, hi) if ns[j][0] + ns[j][1] > t + win + slack}
+        pcs |= {ns[j][2] % 12 for j in idx}
+        triad += len(pcs) >= 3
+        dyad += len(pcs) >= 2
+    triad /= len(clusters)
+    dyad /= len(clusters)
+    tops = [max(ns[j][2] for j in idx) for _, idx in clusters]
+    iv = [abs(b - a) for a, b in zip(tops, tops[1:])]
     active = len({bar_index(m, n[0]) for n in ns})
     return dict(
         n=len(ns),
-        med=sorted(pitches)[len(pitches) // 2],
-        hi=sorted(pitches)[int(len(pitches) * .9)],
-        poly=max(poly / len(ns), stack),
-        stack=stack,
+        med=pitches[len(pitches) // 2],
+        poly=dyad,                                  # share of onsets with >= 2 pitch classes
+        triad=triad,
         per_active_bar=len(ns) / max(1, active),
         active_frac=active / nb,
         leap=sum(iv) / len(iv) if iv else 0.0,
@@ -289,60 +289,68 @@ def gm_family(prog: int | None) -> str:
 
 
 def classify_parts(m: Midi) -> list[dict]:
-    """Return one dict per part: role in {drums, bass, chord, lead} plus the evidence.
+    """One dict per part: role in {drums, bass, chord, lead}, plus score and evidence.
 
-    Evidence (all must be evaluated per *part*, i.e. track+channel):
-      name keywords, GM family (reed/pipe/brass/synth-lead/choir are lead-ish; guitar/piano/organ
-      are ambiguous so only content counts), monophony, register, sparsity, melodic motion.
-    score >= 3 => lead.  The thresholds were tuned on the 20 MIDIs in the reference folder.
+    role 'lead' = melody / vocal / solo / hook line that must NOT be turned into accompaniment.
+    tier 2 = score >= 5 (name or GM lead voice backed by content), tier 1 = 3 <= score < 5
+    ('melody candidate': drop by default, but a human may want it as PHR).
+    Evidence is evaluated per part (track+channel): name keywords, GM family (programs also
+    read from XG sysex), monophony/chordness, register, sparsity, melodic motion.
     """
     rows = []
     for p in m.parts:
         st = part_stats(m, p)
         name = (p.name or "").lower()
         fam = gm_family(p.program)
-        row = dict(part=p, stats=st, family=fam, role="chord", score=0.0, why=[])
+        row = dict(part=p, stats=st, family=fam, role="chord", score=0.0, tier=0, why=[])
         if p.is_drums:
             row["role"] = "drums"
             rows.append(row)
             continue
         score, why = 0.0, row["why"]
-        if any(k in name for k in _NAME_LEAD) and not any(k in name for k in _NAME_NOT_LEAD):
+        named = bool(_NAME_LEAD.search(name)) and not _NAME_NOT_LEAD.search(name)
+        gm_lead = p.program in _GM_LEAD
+        mono = st["poly"] < 0.15
+        if named:
             score += 3
             why.append("name")
-        if fam in ("reed", "pipe", "brass", "synth-lead") or p.program in (40, 41, 52, 53, 54, 110, 111, 12, 109):
+        if gm_lead:
             score += 1.5
             why.append(f"GM {fam}")
-        mono = st["poly"] < 0.15
         if mono:
             score += 1
             why.append("monophonic")
         if st["med"] >= 66 and st["poly"] < 0.30:
             score += 1
             why.append("high register")
+        elif 55 <= st["med"] < 66 and mono:
+            score += 0.5
+            why.append("melody register")
         if st["active_frac"] < 0.6 and mono:
             score += 0.5
-            why.append("sparse (not on every bar)")
-        if mono and st["leap"] >= 2.0 and st["big_leap_frac"] >= 0.15 and st["repeat_frac"] < 0.5:
+            why.append("sparse")
+        if mono and st["leap"] >= 1.8 and st["repeat_frac"] < 0.5:
             score += 1
             why.append("melodic motion")
         if mono and st["repeat_frac"] >= 0.6:
             score -= 1.5
             why.append("repeated-note ostinato (-)")
-        if st["med"] < 52 and mono:
+        if st["med"] < 52 and mono and not (named or gm_lead):
             score -= 2
             why.append("low register (-)")
-        if st["poly"] >= 0.45:
+        if st["triad"] >= 0.45 and not named:
             score -= 2
             why.append("chordal (-)")
+        elif st["triad"] >= 0.45:
+            score -= 1
         if fam == "bass" or "bass" in name:
             score -= 3
         row["score"] = score
-        # role without lead: bass / chord
-        if fam == "bass" or "bass" in name or (st["med"] < 50 and mono):
+        if fam == "bass" or "bass" in name or (st["med"] < 50 and mono and not (named or gm_lead)):
             row["role"] = "bass"
-        if score >= 3 and row["role"] != "bass":
+        elif score >= 3:
             row["role"] = "lead"
+            row["tier"] = 2 if score >= 5 else 1
         rows.append(row)
     return rows
 
@@ -434,136 +442,176 @@ def similarity_matrix(m: Midi, feats, nparts: int, roles) -> list[list[float]]:
 
 @dataclass
 class Segment:
-    start: int
-    end: int           # exclusive bar
+    start: int         # 0-based bar index, inclusive
+    end: int           # exclusive
+    cluster: int = -1  # segments with the same cluster id repeat musically (verse 2 ~ verse 1)
     label: str = ""
     density: float = 0.0
-    kind: str = ""
+    fill_bar: int | None = None      # bar index of the break/fill that leads INTO this segment
 
     @property
     def bars(self):
         return self.end - self.start
 
 
-def _segment_boundaries(m: Midi, feats, S, min_len: int = 4) -> list[int]:
-    nb = m.nbars
-    # novelty from a checkerboard kernel over the self-similarity matrix (kernel half-width 4)
-    k = 4
+def _novelty(S, nb, k=4):
+    """Within-window minus cross-window similarity around each bar line (checkerboard kernel)."""
     nov = [0.0] * (nb + 1)
     for b in range(1, nb):
-        v = 0.0
-        for i in range(1, k + 1):
-            for j in range(1, k + 1):
-                if b - i >= 0 and b + j - 1 < nb:
-                    v += S[b - i][b - j] + S[b + i - 1][b + j - 1] if False else 0.0
-        # simple robust form: within-window similarity minus cross-window similarity
-        L = [x for x in range(max(0, b - k), b)]
-        R = [x for x in range(b, min(nb, b + k))]
+        L = range(max(0, b - k), b)
+        R = range(b, min(nb, b + k))
         if len(L) < 2 or len(R) < 2:
             continue
         within = (sum(S[x][y] for x in L for y in L) / len(L) ** 2
                   + sum(S[x][y] for x in R for y in R) / len(R) ** 2) / 2
         cross = sum(S[x][y] for x in L for y in R) / (len(L) * len(R))
         nov[b] = within - cross
-    # instrumentation change: parts newly active or dropped between adjacent bars
-    for b in range(1, nb):
-        a, c = set(feats["active"][b - 1]), set(feats["active"][b])
-        nov[b] += 0.08 * len(a ^ c) / max(1, len(a | c)) * 4
-    # structural silence / break bars (drum density collapse) mark a boundary on the bar after
+    return nov
+
+
+def _marker_bars(feats, nb):
+    """Bars whose drum count collapses (break) or spikes (fill) versus the song median."""
     dn = feats["drum_n"]
-    med = sorted(x for x in dn if x)[len(dn) // 2] if any(dn) else 0
-    for b in range(1, nb):
-        if med and dn[b - 1] < 0.35 * med and dn[b] >= 0.6 * med:
-            nov[b] += 0.5
-    # pick peaks, greedy, enforce min_len
-    cand = sorted(range(1, nb), key=lambda b: -nov[b])
-    thr = 0.12
-    chosen = [0, nb]
+    live = sorted(x for x in dn if x)
+    med = live[len(live) // 2] if live else 0
+    marks = {}
+    for b in range(nb):
+        if not med or not dn[b]:
+            continue
+        if dn[b] < 0.35 * med:
+            marks[b] = "break"
+        elif dn[b] >= 1.25 * med:
+            marks[b] = "fill"
+    return marks
+
+
+def _segment_boundaries(m, feats, S, first, last, min_len=8, thr=0.11):
+    nb = m.nbars
+    nov = _novelty(S, nb)
+    for b in range(1, nb):   # instrumentation change between adjacent bars adds to novelty
+        a, c = set(feats["active"][b - 1]), set(feats["active"][b])
+        nov[b] += 0.25 * len(a ^ c) / max(1, len(a | c))
+    marks = _marker_bars(feats, nb)
+    for b in marks:           # a break/fill bar ends a section: boundary is on the next bar line
+        if b + 1 < nb:
+            nov[b + 1] += 0.06
+    cand = sorted((b for b in range(first + 1, last) if nov[b] >= thr), key=lambda b: -nov[b])
+    chosen = [first, last]
     for b in cand:
-        if nov[b] < thr:
-            break
         if all(abs(b - c) >= min_len for c in chosen):
             chosen.append(b)
-    return sorted(chosen)
+    return sorted(chosen), marks
 
 
-def find_sections(m: Midi, parts_info=None, verbose=False):
-    """Return (segments, info). Segments carry a proposed label and bar range."""
+def _segsim(S, a: Segment, b: Segment) -> float:
+    n = min(a.bars, b.bars, 16)
+    return sum(S[a.start + i][b.start + i] for i in range(n)) / n if n else 0.0
+
+
+def find_sections(m: Midi, parts_info=None, min_len: int = 8):
+    """Return (segments, ctx). Each segment has a cluster id and a proposed label."""
     info = parts_info or classify_parts(m)
     roles = {i: r["role"] for i, r in enumerate(info)}
     parts = [r["part"] for r in info]
     feats = bar_features(m, parts, roles)
     S = similarity_matrix(m, feats, len(parts), roles)
     nb = m.nbars
-    # trim leading / trailing empty bars
-    first = next((b for b in range(nb) if feats["drum_n"][b] or feats["pitched_n"][b]), 0)
-    last = next((b for b in range(nb - 1, -1, -1) if feats["drum_n"][b] or feats["pitched_n"][b]), nb - 1) + 1
-    bounds = [b for b in _segment_boundaries(m, feats, S) if first < b < last]
-    bounds = [first] + bounds + [last]
+    busy = [feats["drum_n"][b] + feats["pitched_n"][b] >= 4 for b in range(nb)]   # ignore pickups
+    first = next((b for b in range(nb) if busy[b]), 0)
+    last = next((b for b in range(nb - 1, -1, -1) if busy[b]), nb - 1) + 1
+    bounds, marks = _segment_boundaries(m, feats, S, first, last, min_len)
+    # A solid lead (tier 2) that enters >= 4 bars after the band starts marks the end of an intro
+    # that the self-similarity matrix cannot see (band already at full strength, e.g. NIKITA).
+    entries = [min(bar_index(m, n[0]) for n in r["part"].notes)
+               for r in info if r.get("tier") == 2]
+    if entries:
+        e = min(entries)
+        if first + 4 <= e < bounds[1] - 2:
+            bounds.insert(1, e)
     segs = [Segment(a, b) for a, b in zip(bounds, bounds[1:]) if b > a]
-    # merge tiny segments (<3 bars) into the neighbour that is more similar
-    changed = True
-    while changed and len(segs) > 1:
-        changed = False
-        for i, s in enumerate(segs):
-            if s.bars < 3:
-                j = i - 1 if i > 0 and (i == len(segs) - 1 or _segsim(S, segs[i - 1], s) >= _segsim(S, s, segs[i + 1])) else i + 1
-                lo, hi = sorted((i, j))
-                segs[lo] = Segment(segs[lo].start, segs[hi].end)
-                del segs[hi]
-                changed = True
-                break
     for s in segs:
         s.density = sum(feats["drum_n"][b] + feats["pitched_n"][b] for b in range(s.start, s.end)) / s.bars
-    _label(segs, S, feats)
-    return segs, dict(S=S, feats=feats, info=info)
+        if s.start - 1 in marks:
+            s.fill_bar = s.start - 1
+    _cluster(segs, S)
+    _label(segs, feats, marks)
+    return segs, dict(S=S, feats=feats, info=info, marks=marks)
 
 
-def _segsim(S, a: Segment, b: Segment) -> float:
-    n = min(a.bars, b.bars)
-    return sum(S[a.start + i][b.start + i] for i in range(n)) / n if n else 0.0
-
-
-def _label(segs: list[Segment], S, feats) -> None:
-    """Cluster segments by aligned similarity (same-length prefix), then name them."""
-    clusters: list[list[int]] = []
+def _cluster(segs, S, thr=0.78):
+    cl = []
     for i, s in enumerate(segs):
-        for c in clusters:
-            if _segsim(S, segs[c[0]], s) >= 0.80 and abs(segs[c[0]].bars - s.bars) <= max(2, s.bars // 3):
+        for c in cl:
+            ref = segs[c[0]]
+            if _segsim(S, ref, s) >= thr and abs(ref.bars - s.bars) <= max(2, ref.bars // 2):
                 c.append(i)
+                s.cluster = segs[c[0]].cluster if segs[c[0]].cluster >= 0 else len(cl)
                 break
         else:
-            clusters.append([i])
-    tag = {}
-    for ci, c in enumerate(clusters):
-        for i in c:
-            tag[i] = ci
+            s.cluster = len(cl)
+            cl.append([i])
+
+
+def _label(segs, feats, marks):
+    """Intro = leading segment before the first full-band section; Ending = trailing short/unique
+    segment; the rest are ordered by mean density -> Main A..D (clusters beyond 4 -> 'other')."""
+    if not segs:
+        return
+    n = len(segs)
     dn = feats["drum_n"]
-    # rank clusters: repeats and density decide Main order (ascending density -> A..D)
-    mains = [c for c in clusters if len(c) >= 2 or segs[c[0]].bars >= 4]
-    mains.sort(key=lambda c: sum(segs[i].density for i in c) / len(c))
-    names = {}
-    for rank, c in enumerate(mains[:4]):
-        for i in c:
-            names[i] = "Main " + "ABCD"[rank]
+    by_cluster: dict[int, list[int]] = defaultdict(list)
     for i, s in enumerate(segs):
-        drumless = sum(dn[b] for b in range(s.start, s.end)) / s.bars < 3
-        if i == 0 and (s.bars <= 8 or drumless or i not in names or segs[0].density < 0.7 * max(x.density for x in segs)):
-            if not (len(clusters[tag[i]]) >= 2 and s.bars > 8):
-                s.label, s.kind = "Intro", "intro"
-                continue
-        if i == len(segs) - 1 and (s.bars <= 8 or i not in names or len(clusters[tag[i]]) == 1):
-            s.label, s.kind = "Ending", "ending"
-            continue
-        s.label = names.get(i, "Bridge/other")
-        s.kind = "main" if i in names else "other"
-    # fills: the last bar of a segment whose drum count is >= 1.25x the segment median
+        by_cluster[s.cluster].append(i)
+    intro = ending = None
+    s0 = segs[0]
+    if n > 1 and (len(by_cluster[s0.cluster]) == 1 and s0.bars <= 12
+                  and s0.density < 0.95 * max(x.density for x in segs)):
+        intro = 0
+    sl = segs[-1]
+    if n > 1 and len(by_cluster[sl.cluster]) == 1 and (sl.bars <= 12 or sl.density >= segs[-2].density):
+        ending = n - 1
+    pool = [c for c, idx in by_cluster.items() if any(i not in (intro, ending) for i in idx)]
+    # most repeated (then densest) clusters become Mains; keep at most 4
+    pool.sort(key=lambda c: (-sum(1 for i in by_cluster[c] if i not in (intro, ending)),
+                             -sum(segs[i].density for i in by_cluster[c])))
+    keep = pool[:4]
+    keep.sort(key=lambda c: sum(segs[i].density for i in by_cluster[c]) / len(by_cluster[c]))
+    name = {c: "Main " + "ABCD"[r] for r, c in enumerate(keep)}
+    for i, s in enumerate(segs):
+        if i == intro:
+            s.label = "Intro"
+        elif i == ending:
+            s.label = "Ending"
+        else:
+            s.label = name.get(s.cluster, "other")
+
+
+def propose_ranges(segs, feats, marks, loop_bars: int = 4):
+    """Turn segments into the ranges a style would use: (name -> (first_bar, last_bar) 1-based,
+    inclusive).  Mains: the `loop_bars`-bar window of the cluster closest to its centroid,
+    avoiding break/fill bars.  Fill = the break/fill bar that leads into that main (if any)."""
+    out = {}
     for s in segs:
-        counts = [dn[b] for b in range(s.start, s.end)]
-        if len(counts) >= 3:
-            med = sorted(counts)[len(counts) // 2]
-            if counts[-1] >= 1.25 * med and med > 0:
-                s.label += " (+fill bar %d)" % (s.end - 1)
+        if s.label.startswith("Main") and s.label not in out:
+            members = [x for x in segs if x.cluster == s.cluster]
+            for x in members:   # prefer a member that starts right after a fill/break bar
+                if x.fill_bar is not None:
+                    s = x
+                    break
+            a = s.start
+            b = min(s.end, a + loop_bars)
+            out[s.label] = (a + 1, b)
+            if s.fill_bar is not None:
+                out["Fill In " + s.label[-1] + s.label[-1]] = (s.fill_bar + 1, s.fill_bar + 1)
+        elif s.label in ("Intro", "Ending") and s.label not in out:
+            end = s.end - 1 if (s.end - 1) in marks and s.label == "Intro" else s.end
+            a = s.start if s.label == "Intro" else max(s.start, s.end - loop_bars)
+            b = min(end, a + (loop_bars * 2 if s.label == "Intro" else loop_bars))
+            out[s.label] = (a + 1, b)
+    if "Ending" not in out and segs:       # last section repeats a Main: still end on its last bars
+        e = segs[-1].end
+        out["Ending"] = (max(segs[-1].start, e - loop_bars) + 1, e)
+    return out
 
 
 # ============================================================ CLI
@@ -583,9 +631,12 @@ def report(path: str, show_parts: bool = True) -> None:
             print(f"  {p.label:9} {p.name[:16]:16} prog={p.program!s:>4} {r['family']:14} n={st['n']:5d} "
                   f"med={st['med']:3d} poly={st['poly']:.2f} act={st['active_frac']:.2f} "
                   f"leap={st['leap']:4.1f} -> {r['role']:6} {r['score']:+.1f} {','.join(r['why'])}")
-    segs, _ = find_sections(m, info)
+    segs, ctx = find_sections(m, info)
     for s in segs:
-        print(f"  {_fmt_bars(s)}  {s.label:28} density {s.density:6.1f}")
+        fb = f" fill/break bar {s.fill_bar + 1}" if s.fill_bar is not None else ""
+        print(f"  {_fmt_bars(s)}  {s.label:8} cluster {chr(65 + s.cluster % 26)} density {s.density:6.1f}{fb}")
+    print("  proposed ranges:", ", ".join(f"{k} {a}-{b}" for k, (a, b) in
+                                        propose_ranges(segs, ctx["feats"], ctx["marks"]).items()))
 
 
 if __name__ == "__main__":
