@@ -132,7 +132,7 @@ def test_casm_groups_and_tables():
 
 
 def test_tempo_changes_and_restore():
-    s = _style(("Main A", "Ending B", "Ending A"))
+    s = _style(("Main A", "Ending A", "Ending B"))
     s.sections[1].tempo_changes = [(BAR, 90.0), (BAR + 480, 60.0)]
     data = write_sty(s)
     ev = _events(data)

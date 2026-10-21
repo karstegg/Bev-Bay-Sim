@@ -37,3 +37,12 @@ No official Yamaha spec was available offline, so **nothing here is verified on 
 - No OTSc / MH written; hardware may or may not require them.
 - Voice banks for DGX-670 (MegaVoice/Live! bank MSB 8) vs plain GM/XG.
 - A factory style from your own DGX-670 would be the best ground truth: run `python -m midi2sty.dump_sty style.sty`.
+
+## sty_writer / validate status (SFF1 rewrite, checked against 14 real SFF1 styles)
+- `write_sty` always writes **SFF1** (`Ctab` 27 B + `Cntt`); `Style.sff_version == 2` is ignored because SFF2 needs `Ctb2` (not implemented) and real files never mix SFF2 with Ctab. This supersedes the SFF2 notes above.
+- Header order: time sig, tempo, `SFF1`, 32-byte name, 4 fixed Yamaha sysex (`43 76 1A 10 01x8`, `43 73 39 11 00 46 00`, 2x `43 73 01 51 05 00 01|02 08 00x7`), `SInt`, GM reset, then per channel (ch16 down to ch9) CC7, CC10 (chords/PHR only), CC91, CC93, CC94, bank MSB/LSB, program. Mix values are the medians of the real files (vol 67/75/65/55/55/44/60/60, reverb 24/23/0/27/31/36/28/38, chorus 0 for rhythm+bass, 20-30 otherwise). RHY bank MSB 127, others MSB 0 (no DGX-native voice banks).
+- Sections are written in `Style.sections` order, first one bar after `SInt`, each followed by text meta 0x01 `fn:<Section>\0`; EOT = end of last section; lengths rounded up to whole bars; notes clamped to their section (no overhang), same-pitch overlaps trimmed, note-offs sorted before note-ons at equal ticks. PPQ stays 480 (real files use 1920 or 96; both load).
+- Tempo: `StyleSection.tempo_changes` become tempo metas at section start + t; the base tempo is re-sent at the next section start.
+- CASM groups: `[Main A-D, Fill In AA-DD, Fill In BA, Intro A, Ending A]`, `[Intro B, Ending B]`, `[Intro C, Ending C]` (only present sections); sections with `bypass_chords` go into a separate CSEG of the same layout group with bypass tables (non-rhythm NTR0/NTT0/RTR1, bass RTR1). Tables only for roles that have notes in that group, dest = src = style channel. Tables: RHY NTR1 NTT0 hk6 RTR1 chord-mute 07FFFFFFFF; BASS NTR0 NTT3 hk8 lo 1C RTR2 (Cntt 0x81); CHD/PAD/PHR NTR1 NTT2 hk7 RTR1; source chord CMaj7.
+- Not written: OTSc/FNRc chunks, XG part/effect sysex, `(C)` text, CC71/74, alt-source (ch1-8) tables, Ctb2.
+- `validate_sty(data, expect_ppq=None, require_cntt=True)` checks the above; pass `require_cntt=False` for real files (8/14 have no Cntt).
