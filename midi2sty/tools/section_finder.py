@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prototype helpers for the midi2sty mapper (standalone; imports nothing from midi2sty).
 
-Two things live here, both pure python + numpy-free (stdlib only):
+Two things live here (pure python, stdlib only):
 
 1. ``classify_parts`` - decide which song parts are lead/melody/vocal/solo lines
    (NOT usable as accompaniment) vs drums / bass / chordal / pad.
@@ -22,7 +22,7 @@ import math
 import os
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 

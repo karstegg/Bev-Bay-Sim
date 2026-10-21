@@ -81,15 +81,13 @@ def _parse_track(d: bytes) -> list[MidiEvent]:
             mt = d[i + 1]
             ln, i = _read_vlq(d, i + 2)
             ev.append(MidiEvent(tick, META, meta_type=mt, data=bytes(d[i:i + ln])))
-            i += ln
-            running = 0
+            i += ln  # running status is kept across meta events: many real files rely on it
             if mt == 0x2F:
                 break
         elif st in (0xF0, 0xF7):
             ln, i = _read_vlq(d, i + 1)
             ev.append(MidiEvent(tick, SYSEX, a=st, data=bytes(d[i:i + ln])))
             i += ln
-            running = 0
         else:
             if st & 0x80:
                 running = st

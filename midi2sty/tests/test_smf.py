@@ -41,3 +41,11 @@ def test_errors():
         parse_smf(b"nope")
     with pytest.raises(smf.SmfError):
         write_smf([[], []], 480, 0)
+
+
+def test_running_status_survives_meta_event():
+    from midi2sty.smf import parse_smf
+    trk = (b"\x00\x90\x3c\x40" + b"\x00\xff\x01\x01x" + b"\x10\x3e\x40" + b"\x00\xff\x2f\x00")
+    data = b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x01\xe0MTrk" + len(trk).to_bytes(4, "big") + trk
+    notes = [e for e in parse_smf(data).tracks[0] if e.kind == "note_on"]
+    assert [e.a for e in notes] == [0x3C, 0x3E]
