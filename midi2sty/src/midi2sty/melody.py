@@ -26,6 +26,13 @@ _NAME_NOT_LEAD = re.compile(r"bass|drum|perc|kick|\bpad|string|chord|comp\b|rhyt
 _GM_LEAD = set(range(56, 88)) | {40, 41, 109, 110, 111, 21, 22, 23}
 
 
+def ensure_index(song: model.Song) -> None:
+    """Give every track a unique index (hand-built tracks default to -1)."""
+    if len({t.index for t in song.tracks}) != len(song.tracks) or any(t.index < 0 for t in song.tracks):
+        for i, t in enumerate(song.tracks):
+            t.index = i
+
+
 def bar_ticks(song: model.Song) -> int:
     num, den = song.time_sig
     return max(1, model.TICKS_PER_BEAT * 4 * num // den)
@@ -87,6 +94,7 @@ def part_stats(song: model.Song, track: model.Track) -> dict:
 
 
 def classify_parts(song: model.Song) -> list[dict]:
+    ensure_index(song)
     rows = []
     for tr in song.tracks:
         row = dict(index=tr.index, tier=0, score=0.0, reason="", role="chord",
@@ -125,6 +133,8 @@ def classify_parts(song: model.Song) -> list[dict]:
             score -= 1.5; why.append("repeated-note ostinato (-)")
         if st["med"] < 52 and mono and not (named or gm_lead):
             score -= 2; why.append("low register (-)")
+        if st["dur_mean"] >= 3.0 and not named:
+            score -= 1.5; why.append("sustained pad-like (-)")
         if st["triad"] >= 0.45:
             score -= 1 if named else 2; why.append("chordal (-)")
         is_bass = fam == "bass" or "bass" in name

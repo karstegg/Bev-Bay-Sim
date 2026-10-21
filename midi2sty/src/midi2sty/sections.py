@@ -173,6 +173,9 @@ def _label(segs):
     if n > 1 and len(by_cluster[sl.cluster]) == 1 and (sl.bars <= 12 or sl.density >= segs[-2].density):
         ending = n - 1
     pool = [c for c, idx in by_cluster.items() if any(i not in (intro, ending) for i in idx)]
+    if not pool and ending is not None:      # the "ending" is the only body of the song: it is a Main
+        ending = None
+        pool = [c for c, idx in by_cluster.items() if any(i != intro for i in idx)]
     pool.sort(key=lambda c: (-sum(1 for i in by_cluster[c] if i not in (intro, ending)),
                              -sum(segs[i].density for i in by_cluster[c])))
     keep = pool[:4]
