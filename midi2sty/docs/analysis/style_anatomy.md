@@ -27,19 +27,19 @@ duration ~1/96 beat. Only 21/140 fills have a crash on their first beat and only
 pitched notes are held to within 1 beat of the end (86/96%), longest pitched note 4.0/4.5 beats (median); no tempo events, no overhang (100% of note-offs <= section end; 0 notes cross a section end; last note-off == EOT in 15/28 files).
 Endings: the final hit is a big chord (median 15/14/10 simultaneous notes for A/B/C across bass+chords+drums) on a bar start (A 79%, B 54%, C 39%) a median 4.0 beats before the end, then it rings: last beat silent (no onset) in 93/96/82% of Endings A/B/C
 (Intro: 0%); last pitched note-off within 1 beat of the end 71/61/57%; the crash coincides with the final hit in 29/57/43% (any crash in the ending 32/82/96%). Ritardando = tempo events inside the section: Ending A none; Ending B 9/28 and C 12/28 files
-(median 8-9 steps over 2.0 / 3.6 beats starting 6.8 / 10.8 beats before the end, down to 0.56 / 0.67 of base tempo; steps are 1/4-1/2 beat apart, decreasing); SFF1 PSR-tutorial files also drop to 50 bpm at the last tick(s) of Ending A/B/C.
+(median 8-9 steps over 2.0 / 3.6 beats starting 6.8 / 10.8 beats before the end, down to 0.56 / 0.67 of base tempo; steps are 1/4-1/2 beat apart, decreasing); 8/28 files also contain a 50 bpm tempo event inside an Ending (final chord at 50 bpm; in Ending A at its start).
 
-**4. Setup (table 4).** Layout: SFF1 = all setup events at tick 0; SFF2 = sysex/CC spread ~5 ticks apart over ticks 164-623 of the lead-in bar (XG-On `43 10 4C 00 00 7E 00` at tick 164 in the 14 SFF2 files, none in SFF1). Header order: timesig, tempo, [copyright 0x02 in 13/28], SFF1/SFF2 marker, 32-byte track name, 4 fixed sysex
-(`43 76 1A 10 01 01 01 01 01 01 01 01` 27/28, `43 73 39 11 00 46 00` 28/28, two `43 73 01 51 05 00 {01|02} 08 00..` 26/28), `SInt`, GM reset `7E 7F 09 01`, then per channel CC7/10/91/93/94/71/74, bank MSB/LSB, program. Plus 20-40 XG sysex (`43 10 4C 02 01 ..` reverb/chorus/variation types, `43 10 4C 08 pp ..` part params, `43 10 4C 30 nn ..` drum-note params).
+**4. Setup (table 4).** Layout: SFF1 = all setup events at tick 0; SFF2 = sysex/CC spread ~5 ticks apart over ticks 164-623 of the lead-in bar (XG-On `43 10 4C 00 00 7E 00` at tick 96-189 in the 14 SFF2 files, none in SFF1). Header order: timesig, tempo, [copyright 0x02 in 13/28], SFF1/SFF2 marker, 32-byte track name, 4 fixed sysex
+(`43 76 1A 10 01 01 01 01 01 01 01 01` 27/28, `43 73 39 11 00 46 00` 28/28, two `43 73 01 51 05 00 {01|02} 08 00..` 26/28), `SInt`, GM reset `7E 7F 09 01`, then per channel CC7/10/91/93/94/71/74, bank MSB/LSB, program. Plus ~31 XG sysex per file (median) (`43 10 4C 02 01 ..` reverb/chorus/variation types, `43 10 4C 08 pp ..` part params, `43 10 4C 30 nn ..` drum-note params).
 Per-role values (files / median): RHY1/2 bank MSB 127 (23/25, 28/28) LSB 0, program = kit (0, 80, 83 common), vol 67/75, reverb 24/23, chorus rare (5/3 files), pan not sent. BASS MSB 8 (19) or 0 (9), LSB 0/2/112+, program 17 (18 files) or 33, vol 65, reverb 0 in 25/28, chorus 6 files, pan 1 file.
 CHD1/CHD2/PAD/PHR1/PHR2: vol 55/55/44/62/60, reverb 27/31/36/28/38, chorus 20/30/23/28/22 (in 15-18 of 28 files), pan sent in 18/21/6/22/18 files (median 52/49/76/72/53), variation CC94 in 6-13 files, MSB 0 (16) / 8 (10) / 104 (2), LSB 112-122 for DGX native voices.
-Section starts: 12-17/28 files (more for Intro C / Ending B,C: 17-21) re-send channel CCs at each section start (vol, expr, bank, pc, pan - a mixer reset; identical values in every section of a file), 14 files never. Inside sections: CC11 expression (27k events, only in 8 files: ballad/DGX-native), pitch bend (5.9k), CC74/CC1.
+Section starts: 6/28 files re-send channel CCs (vol, expr, bank, pc, pan = mixer reset) at EVERY section start, 18 at some sections (12-17 files per Main/Fill type, 17-21 for Intro C / Ending B,C), 4 never. Inside sections: CC11 expression in 24/28 files (27k events, heaviest in ballads/DGX-native), pitch bend in 21 files (5.9k), CC74/CC1 (cutoff 1.1k, mod 1.0k).
 No per-section volume scheme exists beyond that.
 
 **5. CASM (tables in appendix).** SFF1 uses `Ctab` (27 B body; 31 B in a few with a 5-byte extra `02 00 18 xx yy`); `Cntt` only in 6/14 SFF1 files (8 have none). SFF2 uses `Ctb2` (47 B body, 14/14, NEVER Cntt):
-byte map 0 src, 1-8 name, 9 dest, 10 editable (always 1), 11-12 note mute (0FFF in 98%), 13-17 chord mute, 18 src root (always 0), 19 src type (Maj7=2 in 79%, Maj=0 in 19%), 20-21 prefix (`00 7F` in 85%), then 3 six-byte groups (NTR, NTT, high key, low, high, RTR) at 22/28/34 (group 2 differs from group 1 in 25-61% of
+byte map 0 src, 1-8 name, 9 dest, 10 editable (always 1), 11-12 note mute (0FFF in 98%), 13-17 chord mute, 18 src root (always 0), 19 src type (SFF1: Maj7=2 79%, Maj=0 19%, 14 rare; SFF2 main-channel tables: 2 in 75%, 0 in 13%), 20-21 prefix (`00 7F` in 84%), then 3 six-byte groups (NTR, NTT, high key, low, high, RTR) at 22/28/34 (group 2 differs from group 1 in 25-61% of
 non-rhythm tables = guitar/other chord-type variants; rhythm 0%), 7-byte tail at 40 (`00 00 00 00 00 00 00` / `...80 00 00` / `... 7F 00 00` / drum extra `00 01 00 18 31 xx 00`). In Ctb2 the NTT byte folds in Cntt: bass = `0x81`.
-Grouping: 1-15 CSEGs per file (2 in 11/14 SFF1, 3-7 in SFF2), sections never repeated. Typical SFF2 split: `[Intro A, Main A-D, Fill AA-DD,BA, Ending A]`, `[Intro B, Ending B]`, `[Intro C, Ending C]`; typical SFF1: one big group (Main/Fills/Intro A/Ending A, often + Intro B/Ending B) + `[Intro C, Ending C]`. Tables per CSEG 8-16 (alt source channels 1-8 add extra tables mapping to the same dest in 11/14 SFF2 and 6/14 SFF1 files).
+Grouping: 1-15 CSEGs per file (2 in 11/14 SFF1, 2-7 in SFF2), sections never repeated. Typical SFF2 split: `[Intro A, Main A-D, Fill AA-DD,BA, Ending A]`, `[Intro B, Ending B]`, `[Intro C, Ending C]`; typical SFF1: one big group (Main/Fills/Intro A/Ending A, often + Intro B/Ending B) + `[Intro C, Ending C]`. Tables per CSEG 8-16 (alt source channels 1-8 add extra tables that map to dest 10-15: present in 13/14 SFF2 and 7/14 SFF1 files; for SFF2 they carry nearly all Intro B/C/Ending B/C material, see next bullet).
 Modal values (value : share of tables):
 - RHY1/RHY2 (all sections, both formats, 100%): NTR 1 (fixed), NTT 0, high key 6, low 00 high 7F, RTR 1, chord mute `07FFFFFFFF`, note mute `0FFF`.
 - BASS Main/Fill: NTR 0, NTT 3 (SFF1) / 0x81 (SFF2), high key 3 (50%) / 8 (30%) / 11, low 0x1C (95%), high 7F, RTR 2 (SFF1 100%, SFF2 ~70%, else 4), chord mute `03FFFFFFFF`.
@@ -47,6 +47,7 @@ Modal values (value : share of tables):
 - PHR1/PHR2 Main: NTR 1/NTT 2 (SFF1 64 of 128 tables), NTR 0/NTT 3 (SFF1 44), NTR 0/NTT 1 melody only in SFF2 (19); high key 5-8.
 - Intro A and Ending A tables == Main tables (same group in 11/14 files).
 - Intro B/C and Ending B/C differ from Main in 100% of the non-rhythm roles (rhythm identical): share of non-rhythm tables with NTT 0 (bypass) = SFF1 53% (Intro) / 42% (Ending) vs 6% in Main; SFF2 88% / 89% vs 3%; NTR 0: 79%/73% (SFF1), 95% (SFF2); RTR 1: ~90-96%; bass in B/C mostly NTR 0/NTT 0/RTR 1 (SFF2: 36 of 48 tables) ; SFF2 chord mute `03FFF800FF` in 43-44% of B/C tables (0% in Main) - chord-type mute mask, plus high-key 8/7 spread.
+- Intro B/C and Ending B/C in SFF2 are written on alt source ch1-6 with NTT 0 (bypass = literal pitches, no chord following) and declare source chord type 8 (Cm) in 229 tables (pitch classes: C 24%, Eb 14%, G 15%, no E); Maj (0) 37, Maj7 (2) 222. So those four sections are fixed-pitch phrases, not chord-transposed.
 - Cntt byte 1 (SFF1): rhythm 00; bass 81 (5/6 files) ; chord/pad/phrase 02 (mostly), 00, 05, 03.
 
 **6. Pitch registers in source chord CMaj7 (ALL sections, role = destination, root removed).** BASS min 17, p5/p25/median/p75/p95 = 24/24/28/31/38 (Main/Fill: 24/24/24/31/36; file lowest 24, file highest median 36). CHD1 p5/p25/med/p75/p95 = 43/55/60/67/104 (Main/Fill 48/55/59/64/101);
@@ -56,14 +57,14 @@ Polyphony (notes per onset, Main): BASS 1.04, CHD1 1.8, CHD2 2.2, PAD 3.0, PHR1 
 **7. Other chunks (appendix table).** After the MTrk: `CASM` always (429-5014 B); `OTSc` in 27/28 (SFF1 5.6-8.5 KB, 8356 B typical = four `MTrk` bodies of 2081 B, one per One Touch Setting; SFF2 12.6-16.1 KB; each file's OTSc is unique, no two identical); absent in `Red_red_w.sty` (PPQ 96) which still loads;
 `FNRc` x2 (323 / 1283 B, SFF1: Proud Mary, Sheriff Reggae; starts with sub-tag `FNRP`), `ASnc` x2 (13.8 / 16.3 KB, DGX-native: 70sGlamPiano, JazzPop; sub-tag `AsCm`), `Cmbi` x1 (861 B, 70sGlamPiano; sub-tags `CmMx/MainCmSy`). No `MH`, `MDB`, `AASM`, `AFil`. Order: CASM, OTSc, [ASnc], [Cmbi] / [FNRc]. File size 20-90 KB, MTrk 13-67 KB.
 
-**8. DGX-native .prs vs PSR-tutorial .sty.** The extension carries no information (11 .prs = 5 DGX-native SFF2 + 5 tutorial SFF2 + 1 tutorial SFF1; .sty = 13 SFF1 + 4 SFF2); what matters is the SFF version. SFF1 (14 files): `SFF1` marker, Ctab (+optional Cntt), all setup at tick 0, no XG-On, 2 CSEGs typical, OTSc ~8.4 KB, median file 35 KB, 2 old files PPQ 96, 5-7 of 14 have alt-source tables.
-SFF2 (14 files): `SFF2` marker, Ctb2, setup spread over the lead-in bar with an XG-On at tick 164, 3-7 CSEGs, OTSc ~15 KB, bigger CASM (1.9-4.4 KB vs 0.7-1.4 KB), median 50 KB, alt-source tables (Intro B/C/Ending B/C written on ch1-6 and mapped to ch10-15) in 11/14, 13 files carry `(C)20xx YAMAHA Corp.` text. DGX-native vs tutorial SFF2: structurally identical; native files differ only by ASnc/Cmbi chunks in 2/5,
-slightly larger CASM (2.4 vs 2.6 KB: no real difference) and 179 vs 155 setup XG sysex in total (35 vs 31 per file). 
+**8. DGX-native .prs vs PSR-tutorial .sty.** The extension carries no information (11 .prs = 5 DGX-native SFF2 + 5 tutorial SFF2 + 1 tutorial SFF1; .sty = 13 SFF1 + 4 SFF2); what matters is the SFF version. SFF1 (14 files): `SFF1` marker, Ctab (+optional Cntt), all setup at tick 0, no XG-On, 2 CSEGs typical, OTSc ~8.4 KB, median file 35 KB, 2 old files PPQ 96, 7/14 have alt-source tables.
+SFF2 (14 files): `SFF2` marker, Ctb2, setup spread over the lead-in bar with an XG-On at tick 164, 3-7 CSEGs, OTSc ~15 KB, bigger CASM (1.0-4.4 KB vs 0.4-1.4 KB for most SFF1), median 54 KB, alt-source tables (Intro B/C/Ending B/C written on ch1-6 and mapped to ch10-15) in 13/14, 13 files carry `(C)20xx YAMAHA Corp.` text. DGX-native vs tutorial SFF2: structurally identical; native files differ only by ASnc/Cmbi chunks in 2/5,
+same CASM size (2.4 vs 2.6 KB) and ~36 vs ~31 XG sysex per file.
 
 ## Differences between `src/midi2sty/sty_writer.py` / mapper and the real files (fix list)
 
 1. **Format mix is unseen**: writer emits `SFF2` marker + SFF1-style `Ctab`+`Cntt`. Real: SFF2 = `Ctb2` (47 B, no Cntt) 14/14; SFF1 = `Ctab` (Cntt in 6/14). 0/28 files combine SFF2 with Ctab. Fix: write `SFF1` (+Ctab, drop Cntt or keep: 8/14 SFF1 files have none) or implement Ctb2 per 5.
-2. **Setup is too thin**: add the 4 fixed sysex before `SInt` (`43 76 1A 10 01 01 01 01 01 01 01 01`, `43 73 39 11 00 46 00`, 2x `43 73 01 51 05 00 01|02 08 00 00 00 00 00 00 00`), XG-On only for SFF2 and at tick 164; for SFF2 spread setup ~5 ticks apart inside the lead-in bar.
+2. **Setup is too thin**: add the 4 fixed sysex before `SInt` (`43 76 1A 10 01 01 01 01 01 01 01 01`, `43 73 39 11 00 46 00`, 2x `43 73 01 51 05 00 01|02 08 00 00 00 00 00 00 00`), XG-On only for SFF2 (tick ~100-190); for SFF2 spread setup ~5 ticks apart inside the lead-in bar.
 3. **Mix values**: ours CC7=100, CC10=64, no CC91/93/94. Real: vol RHY1 67 / RHY2 75 / BASS 65 / CHD 55 / PAD 44 / PHR 60-62; reverb 24/23/0/27-31/36/28-38; chorus 0 for rhythm+bass, 20-30 for chords/PAD/PHR; pan centre (unsent) for rhythm and bass, 50-75 for chords/PHR. Rhythm: bank MSB 127 LSB 0 (ours ok), bass bank MSB 8 or 0 program 17/33.
 4. **Roles swapped**: mapper sends main drums to RHY1 and hats/shakers to RHY2; real: main kit on RHY2 (ch10), percussion/tambourine/shaker/conga on RHY1 (ch9).
 5. **Section set/order/length**: writer default makes 10 sections (no Fill In BA, Intro B/C, Ending B/C), Intro A = 2 bars. Real: 15 sections always, Intro A = 1 bar (28/28), order Main A-D, Fills, Intro A-C, Ending A-C, Fill In BA; Intro B 2/4 bars, C 8/4, Ending A 1-2, B 2-3, C 5-9.
@@ -73,6 +74,8 @@ slightly larger CASM (2.4 vs 2.6 KB: no real difference) and 179 vs 155 setup XG
 9. **Tables**: PHR roles use NTR0/NTT1(melody): real is NTR1/NTT2 (chord) or NTR0/NTT3. For Intro B/C and Ending B/C write the bypass table (non-rhythm NTT 0, NTR 0, RTR 1, bass RTR 1; SFF2 chord mute `03FFF800FF`) instead of the Main table; group CSEGs as `[Main*/Fill*/Intro A/Ending A]`, `[Intro B, Ending B]`, `[Intro C, Ending C]` (writer: one CSEG per section, 8 tables each). Bass high key 3 or 8, low 0x1C, RTR 2 (SFF1) are fine; chord/PAD high key 7 fine.
 10. **No OTSc / one-touch chunk** (27/28 real files carry it; `Red_red_w` loads without). Optional: `(C)` text 0x02 meta (13/28).
 11. Register rules for the mapper (CMaj7): BASS 24-38 (median 28; hard floor 17), CHD1/CHD2/PAD 48/55-67/69 (median 60; PAD 55-76), PHR 48-74 (median 62-63); fold anything outside p5-p95 by octaves.
+
+
 
 
 ---
@@ -341,10 +344,10 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 | RHY1 | 14/14 | 1:14 | 0:14 | 6:14 | 1:14 | 0:14 | 7f:14 | 07ffffffff:14 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:2 | 1:14, 3:2 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:3 |
 | BASS | 14/14 | 0:14, 1:1 | 3:13, 1:1, 0:1 | 3:7, 8:4, 11:3 | 2:14, 1:1 | 1c:13, 1a:1 | 7f:11, 2a:1, 73:1, 7a:1 | 03ffffffff:14 |
-| CHD1 | 14/14 | 1:10, 0:7 | 2:11, 3:3, 0:2, 1:1 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 4b:1, 3f:1 | 03ffffffff:14, 002ffc7c50:2 |
+| CHD1 | 14/14 | 1:10, 0:7 | 2:11, 3:3, 0:2, 1:1 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 3f:1, 4b:1 | 03ffffffff:14, 002ffc7c50:2 |
 | CHD2 | 14/14 | 1:13, 0:4 | 2:13, 3:3, 0:2 | 7:7, 3:4, 4:2, 6:2 | 1:14, 2:1 | 0:14, 29:1 | 7f:11, 79:2, 34:1, 39:1 | 03ffffffff:14, 002ffc7c50:1 |
-| PAD | 14/14 | 1:11, 0:5 | 2:14, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 28:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
-| PHR1 | 14/14 | 0:8, 1:7 | 2:9, 3:7 | 5:4, 3:3, 8:3, 7:3 | 1:13, 2:1 | 0:8, 28:2, 38:1, 3f:1 | 7f:12, 43:1, 4a:1, 38:1 | 03ffffffff:14 |
+| PAD | 14/14 | 1:11, 0:5 | 2:14, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 34:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
+| PHR1 | 14/14 | 0:8, 1:7 | 2:9, 3:7 | 5:4, 3:3, 8:3, 7:3 | 1:13, 2:1 | 0:8, 28:2, 3f:1, 38:1 | 7f:12, 43:1, 4a:1, 38:1 | 03ffffffff:14 |
 | PHR2 | 13/14 | 1:9, 0:6 | 2:11, 3:4, 0:1 | 5:3, 7:3, 6:3, 3:2 | 1:13, 2:2 | 0:11, 28:1, 1c:1, 43:1 | 7f:12, 33:1, 4e:1 | 03ffffffff:13 |
 
 #### Group IntroA (value:files, a file counts once per distinct value)
@@ -354,9 +357,9 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 | RHY1 | 14/14 | 1:14 | 0:14 | 6:14 | 1:14 | 0:14 | 7f:14 | 07ffffffff:14 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:2 | 1:14, 3:2 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:3 |
 | BASS | 14/14 | 0:14, 1:1 | 3:12, 1:1, 5:1, 0:1 | 3:7, 8:4, 11:3 | 2:14, 1:1 | 1c:13, 1a:1 | 7f:11, 2a:1, 73:1, 7a:1 | 03ffffffff:14 |
-| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 3:3, 1:2, 0:2 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 4b:1, 3f:1 | 03ffffffff:14, 002ffc7c50:2 |
+| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 3:3, 1:2, 0:2 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 3f:1, 4b:1 | 03ffffffff:14, 002ffc7c50:2 |
 | CHD2 | 14/14 | 1:12, 0:5 | 2:12, 3:3, 0:2, 5:1 | 7:7, 3:4, 4:2, 6:2 | 1:14, 2:1 | 0:14, 29:1 | 7f:11, 79:2, 34:1, 39:1 | 03ffffffff:14, 002ffc7c50:1 |
-| PAD | 14/14 | 1:10, 0:6 | 2:13, 5:1, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 28:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
+| PAD | 14/14 | 1:10, 0:6 | 2:13, 5:1, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 34:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
 | PHR1 | 14/14 | 0:9, 1:6 | 2:8, 3:7, 5:1 | 5:4, 3:3, 8:3, 7:3 | 1:13, 2:1 | 0:8, 28:2, 38:1, 17:1 | 7f:12, 43:1, 38:1, 34:1 | 03ffffffff:14 |
 | PHR2 | 13/14 | 1:8, 0:7 | 2:10, 3:4, 1:1, 0:1 | 5:3, 7:3, 6:3, 3:2 | 1:13, 2:2 | 0:11, 28:1, 1c:1, 43:1 | 7f:12, 33:1, 4e:1 | 03ffffffff:12, 07ffffffff:1 |
 
@@ -368,7 +371,7 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:1 | 1:14, 3:1 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:2 |
 | BASS | 14/14 | 0:14, 1:1 | 0:10, 3:7, 5:2, 1:1 | 3:8, 8:4, 11:3 | 2:10, 1:9 | 1c:13, 1a:1, 1b:1 | 7f:11, 27:1, 73:1, 7a:1 | 03ffffffff:14 |
 | CHD1 | 14/14 | 0:13, 1:7 | 0:11, 2:7, 1:2, 4:1 | 6:4, 8:4, 7:4, 4:2 | 1:14, 2:2 | 0:12, 36:2, 38:2, 28:1 | 7f:11, 41:2, 43:2, 45:1 | 03ffffffff:14, 002ffc7c50:1 |
-| CHD2 | 14/14 | 0:13, 1:8 | 0:11, 2:8, 5:2, 3:1 | 7:5, 6:4, 3:3, 8:3 | 1:14, 2:1 | 0:13, 39:1, 28:1, 34:1 | 7f:10, 79:2, 44:1, 33:1 | 03ffffffff:14, 002ffc7c50:1 |
+| CHD2 | 14/14 | 0:13, 1:8 | 0:11, 2:8, 5:2, 3:1 | 7:5, 6:4, 3:3, 8:3 | 1:14, 2:1 | 0:13, 39:1, 29:1, 34:1 | 7f:10, 79:2, 44:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
 | PAD | 14/14 | 0:14, 1:4 | 0:10, 2:7, 5:2, 4:1 | 8:5, 6:4, 7:4, 5:2 | 1:14 | 0:8, 37:3, 35:2, 36:2 | 7f:10, 42:2, 46:2, 40:2 | 03ffffffff:14 |
 | PHR1 | 14/14 | 0:14, 1:5 | 0:10, 2:6, 5:2, 3:2 | 5:4, 8:4, 3:3, 7:2 | 1:14 | 0:8, 3c:1, 38:1, 17:1 | 7f:11, 4c:1, 4b:1, 43:1 | 03ffffffff:14 |
 | PHR2 | 14/14 | 0:14, 1:5 | 0:10, 2:6, 3:3, 1:1 | 6:6, 5:3, 7:3, 9:2 | 1:14, 2:1 | 0:13, 3b:2, 28:2, 1c:1 | 7f:13, 46:2, 33:1, 4e:1 | 03ffffffff:13, 07ffffffff:1 |
@@ -380,9 +383,9 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 | RHY1 | 13/14 | 1:13 | 0:13 | 6:13 | 1:13 | 0:13 | 7f:13 | 07ffffffff:13 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:2 | 1:14, 3:2 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:3 |
 | BASS | 14/14 | 0:14, 1:1 | 3:12, 1:1, 5:1, 0:1 | 3:7, 8:4, 11:3 | 2:14, 1:1 | 1c:13, 1a:1 | 7f:11, 2a:1, 73:1, 7a:1 | 03ffffffff:14 |
-| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 3:3, 1:2, 0:2 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 4b:1, 3f:1 | 03ffffffff:14, 002ffc7c50:2 |
+| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 3:3, 1:2, 0:2 | 7:6, 6:3, 3:3, 4:2 | 1:12, 2:3 | 0:13, 28:2, 34:1 | 7f:12, 78:2, 3f:1, 4b:1 | 03ffffffff:14, 002ffc7c50:2 |
 | CHD2 | 14/14 | 1:12, 0:5 | 2:12, 3:3, 0:2, 5:1 | 7:7, 3:4, 4:2, 6:2 | 1:14, 2:1 | 0:14, 29:1 | 7f:11, 79:2, 34:1, 39:1 | 03ffffffff:14, 002ffc7c50:1 |
-| PAD | 14/14 | 1:10, 0:6 | 2:13, 5:1, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 28:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
+| PAD | 14/14 | 1:10, 0:6 | 2:13, 5:1, 3:1 | 7:6, 6:3, 5:2, 8:2 | 1:14, 2:1 | 0:10, 35:2, 37:1, 34:1 | 7f:10, 40:2, 42:1, 3f:1 | 03ffffffff:14, 002ffc7c50:1 |
 | PHR1 | 14/14 | 0:9, 1:6 | 2:8, 3:7, 5:1 | 5:4, 3:3, 8:3, 7:3 | 1:13, 2:1 | 0:8, 28:2, 38:1, 17:1 | 7f:12, 43:1, 38:1, 34:1 | 03ffffffff:14 |
 | PHR2 | 13/14 | 1:8, 0:7 | 2:10, 3:4, 1:1, 0:1 | 5:3, 7:3, 6:3, 3:2 | 1:13, 2:2 | 0:11, 28:1, 1c:1, 43:1 | 7f:12, 33:1, 4e:1 | 03ffffffff:12, 07ffffffff:1 |
 
@@ -392,7 +395,7 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 |---|---|---|---|---|---|---|---|---|
 | RHY1 | 14/14 | 1:14 | 0:14 | 6:14 | 1:14 | 0:14 | 7f:14 | 07ffffffff:14 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:1 | 1:14, 3:1 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:2 |
-| BASS | 14/14 | 0:14, 1:1 | 0:9, 3:9, 5:2, 1:1 | 3:8, 8:4, 11:3 | 2:12, 1:8 | 1c:13, 1a:1, 1b:1 | 7f:11, 2a:1, 27:1, 73:1 | 03ffffffff:14 |
+| BASS | 14/14 | 0:14, 1:1 | 0:9, 3:9, 5:2, 1:1 | 3:8, 8:4, 11:3 | 2:12, 1:8 | 1c:13, 1a:1, 1b:1 | 7f:11, 27:1, 2a:1, 73:1 | 03ffffffff:14 |
 | CHD1 | 14/14 | 0:12, 1:7 | 0:10, 2:7, 3:2, 1:2 | 8:5, 6:4, 7:4, 4:2 | 1:14, 2:2 | 0:12, 36:1, 28:1, 24:1 | 7f:11, 78:2, 45:1, 64:1 | 03ffffffff:14, 002ffc7c50:1 |
 | CHD2 | 14/14 | 0:13, 1:9 | 0:10, 2:9, 3:2, 5:2 | 7:5, 6:4, 3:3, 8:3 | 1:14, 2:1 | 0:13, 39:1, 29:1, 42:1 | 7f:10, 79:2, 44:1, 34:1 | 03ffffffff:14, 002ffc7c50:1 |
 | PAD | 14/14 | 0:14, 1:7 | 2:10, 0:9, 5:2, 4:1 | 8:5, 6:4, 7:4, 5:2 | 1:14 | 0:9, 37:3, 35:2, 36:2 | 7f:10, 42:2, 46:2, 40:2 | 03ffffffff:14 |
@@ -412,7 +415,7 @@ Ctab byte 26+: {'00': 1936, '0200183937': 26, '020001313e': 15}
 | PHR1 | 02:5, 00:2, 05:2, 03:1, 81:1, 80:1 |
 | PHR2 | 02:5, 00:2, 01:1, 03:1, 80:1 |
 
-#### Field-wise distribution per role (all tables, src>=8)
+#### Field-wise distribution per role (all tables, by destination role)
 
 | role | tables | NTR | NTT | high key | RTR | note low | note high | chord mute | note mute |
 |---|---|---|---|---|---|---|---|---|---|
@@ -492,7 +495,7 @@ Ctab byte 26+: {'000000007f0000': 496, '00010018313c00': 22, '800000007f0000': 3
 | RHY1 | 12/14 | 1:12 | 0:12 | 6:12 | 1:12 | 0:12 | 7f:12 | 07ffffffff:12 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:1 | 1:14, 3:1 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:1 |
 | BASS | 14/14 | 0:14, 1:1 | 129:14, 0:1 | 3:7, 8:6, 6:1, 11:1 | 2:10, 4:4, 1:1 | 1c:14, 0:1 | 7f:13, 33:1 | 03ffffffff:13, 000009f700:1, 03fff608ff:1, 03c0000000:1 |
-| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 129:7, 1:2, 130:1 | 7:9, 3:4, 8:3, 6:3 | 1:10, 2:6, 4:2, 3:1 | 0:11, 1c:3, 28:1, 26:1 | 7f:13, 33:2, 35:1 | 03ffffffff:14, 002ffc7c50:4, 0000000053:1, 03ffffffac:1 |
+| CHD1 | 14/14 | 1:9, 0:8 | 2:10, 129:7, 1:2, 130:1 | 7:9, 3:4, 8:3, 6:3 | 1:10, 2:6, 4:2, 3:1 | 0:11, 1c:3, 28:1, 26:1 | 7f:13, 33:2, 35:1 | 03ffffffff:14, 002ffc7c50:4, 03ffffffac:1, 0000000053:1 |
 | CHD2 | 14/14 | 0:11, 1:9 | 2:11, 129:4, 1:2, 0:2 | 7:7, 3:4, 6:4, 8:3 | 1:12, 2:5, 3:2 | 0:13, 3d:1, 60:1, 2e:1 | 7f:13, 32:2, 48:1, 45:1 | 03ffffffff:14, 002ffc7c50:5, 000009f700:1, 03fff608ff:1 |
 | PAD | 14/14 | 0:8, 1:8 | 2:12, 1:2, 129:2, 0:1 | 7:11, 6:3, 2:1, 0:1 | 1:12, 2:2, 0:1 | 0:12, 32:1, 2c:1, 27:1 | 7f:13, 37:1, 32:1 | 03ffffffff:14, 002ffc7c50:4 |
 | PHR1 | 14/14 | 1:8, 0:7 | 2:9, 1:4, 129:4 | 7:11, 3:3, 1:1, 8:1 | 1:11, 2:2, 3:1 | 0:11, 28:3, 26:2, 34:1 | 7f:12, 33:4 | 03ffffffff:14 |
@@ -517,12 +520,12 @@ Ctab byte 26+: {'000000007f0000': 496, '00010018313c00': 22, '800000007f0000': 3
 |---|---|---|---|---|---|---|---|---|
 | RHY1 | 12/14 | 1:12 | 0:12 | 6:12 | 1:12 | 0:12 | 7f:12 | 07ffffffff:12 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:1 | 1:14, 3:1 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:1 |
-| BASS | 14/14 | 0:14, 1:1 | 0:12, 129:2, 1:1, 128:1 | 3:9, 8:6, 6:1, 5:1 | 1:11, 4:2, 2:2 | 1c:13, 0:2 | 7f:13, 33:1, 34:1 | 03fff800ff:12, 000007ff00:12, 03ffffffff:4, 07ffffffff:1 |
-| CHD1 | 14/14 | 0:14, 1:1 | 0:14, 2:1, 3:1 | 8:5, 7:3, 5:2, 10:2 | 1:14 | 0:9, 28:4, 37:2, 3b:1 | 7f:7, 33:3, 46:3, 35:2 | 03fff800ff:12, 000007ff00:12, 03ffffffff:3, 07ffffffff:1 |
-| CHD2 | 13/14 | 0:12, 1:4 | 0:12, 2:2, 3:2 | 7:5, 8:4, 3:2, 6:2 | 1:13, 3:1 | 0:9, 28:2, 24:2, 31:1 | 7f:9, 33:2, 45:2, 41:2 | 03fff800ff:11, 000007ff00:11, 03ffffffff:5, 07ffffffff:2 |
-| PAD | 14/14 | 0:14, 1:1 | 0:13, 2:2, 3:1 | 8:6, 7:5, 9:3, 4:3 | 1:14 | 0:6, 36:4, 24:3, 32:1 | 7f:7, 2f:2, 41:2, 34:1 | 03fff800ff:12, 000007ff00:12, 03ffffffff:3, 07ffffffff:1 |
-| PHR1 | 14/14 | 0:14, 1:1 | 0:12, 2:3, 1:2 | 8:6, 7:5, 3:1, 4:1 | 1:14 | 0:7, 28:4, 36:3, 1c:2 | 7f:8, 33:3, 41:2, 27:1 | 03fff800ff:12, 000007ff00:12, 07ffffffff:2, 03ffffffff:2 |
-| PHR2 | 10/14 | 0:10, 1:1 | 0:10, 2:1, 3:1 | 7:3, 2:2, 10:2, 8:2 | 1:10 | 0:7, 28:2, 39:1, 24:1 | 7f:8, 33:2, 4e:1, 48:1 | 03fff800ff:8, 000007ff00:8, 03ffffffff:3, 07ffffffff:2 |
+| BASS | 14/14 | 0:14, 1:1 | 0:12, 129:2, 1:1, 128:1 | 3:9, 8:6, 6:1, 5:1 | 1:11, 4:2, 2:2 | 1c:13, 0:2 | 7f:13, 33:1, 34:1 | 000007ff00:12, 03fff800ff:12, 03ffffffff:4, 07ffffffff:1 |
+| CHD1 | 14/14 | 0:14, 1:1 | 0:14, 2:1, 3:1 | 8:5, 7:3, 5:2, 10:2 | 1:14 | 0:9, 28:4, 37:2, 3b:1 | 7f:7, 33:3, 46:3, 35:2 | 000007ff00:12, 03fff800ff:12, 03ffffffff:3, 07ffffffff:1 |
+| CHD2 | 13/14 | 0:12, 1:4 | 0:12, 2:2, 3:2 | 7:5, 8:4, 3:2, 6:2 | 1:13, 3:1 | 0:9, 28:2, 24:2, 31:1 | 7f:9, 33:2, 45:2, 41:2 | 000007ff00:11, 03fff800ff:11, 03ffffffff:5, 07ffffffff:2 |
+| PAD | 14/14 | 0:14, 1:1 | 0:13, 2:2, 3:1 | 8:6, 7:5, 9:3, 4:3 | 1:14 | 0:6, 36:4, 24:3, 32:1 | 7f:7, 2f:2, 41:2, 34:1 | 000007ff00:12, 03fff800ff:12, 03ffffffff:3, 07ffffffff:1 |
+| PHR1 | 14/14 | 0:14, 1:1 | 0:12, 2:3, 1:2 | 8:6, 7:5, 3:1, 4:1 | 1:14 | 0:7, 28:4, 36:3, 1c:2 | 7f:8, 33:3, 41:2, 27:1 | 000007ff00:12, 03fff800ff:12, 07ffffffff:2, 03ffffffff:2 |
+| PHR2 | 10/14 | 0:10, 1:1 | 0:10, 2:1, 3:1 | 7:3, 2:2, 10:2, 8:2 | 1:10 | 0:7, 28:2, 39:1, 24:1 | 7f:8, 33:2, 4e:1, 48:1 | 000007ff00:8, 03fff800ff:8, 03ffffffff:3, 07ffffffff:2 |
 
 #### Group EndA (value:files, a file counts once per distinct value)
 
@@ -543,27 +546,16 @@ Ctab byte 26+: {'000000007f0000': 496, '00010018313c00': 22, '800000007f0000': 3
 |---|---|---|---|---|---|---|---|---|
 | RHY1 | 12/14 | 1:12 | 0:12 | 6:12 | 1:12 | 0:12 | 7f:12 | 07ffffffff:12 |
 | RHY2 | 14/14 | 1:14 | 0:14 | 6:14, 0:1 | 1:14, 3:1 | 0:14 | 7f:14 | 07ffffffff:14, 0400000000:1 |
-| BASS | 14/14 | 0:14, 1:1 | 0:12, 129:2, 1:1, 128:1 | 3:8, 8:6, 6:1, 5:1 | 1:11, 4:2, 2:2 | 1c:13, 0:2 | 7f:13, 33:1, 34:1 | 03fff800ff:12, 000007ff00:12, 03ffffffff:3, 07ffffffff:1 |
-| CHD1 | 14/14 | 0:14, 1:1 | 0:14, 2:1, 3:1 | 8:5, 7:3, 5:2, 10:2 | 1:14 | 0:9, 28:4, 37:2, 3b:1 | 7f:7, 33:3, 46:3, 35:2 | 03fff800ff:12, 000007ff00:12, 03ffffffff:3, 07ffffffff:1 |
-| CHD2 | 13/14 | 0:12, 1:4 | 0:12, 2:2, 3:1 | 7:5, 8:4, 3:2, 6:2 | 1:13, 3:1 | 0:10, 28:2, 24:2, 31:1 | 7f:9, 33:2, 45:2, 41:2 | 03fff800ff:11, 000007ff00:11, 03ffffffff:4, 07ffffffff:2 |
-| PAD | 14/14 | 0:14, 1:1 | 0:13, 2:2, 3:1 | 8:6, 7:5, 9:3, 4:3 | 1:14 | 0:6, 36:4, 24:3, 32:1 | 7f:7, 41:2, 34:1, 2e:1 | 03fff800ff:12, 000007ff00:12, 03ffffffff:3, 07ffffffff:1 |
-| PHR1 | 14/14 | 0:14, 1:1 | 0:12, 2:3, 1:2 | 8:6, 7:5, 3:1, 4:1 | 1:14 | 0:7, 28:3, 36:3, 1c:2 | 7f:8, 33:3, 41:2, 27:1 | 03fff800ff:12, 000007ff00:12, 07ffffffff:2, 03ffffffff:2 |
-| PHR2 | 10/14 | 0:10, 1:1 | 0:10, 2:1, 3:1 | 7:3, 2:2, 10:2, 8:2 | 1:10 | 0:7, 28:2, 39:1, 24:1 | 7f:8, 33:2, 4e:1, 48:1 | 03fff800ff:8, 000007ff00:8, 03ffffffff:3, 07ffffffff:2 |
+| BASS | 14/14 | 0:14, 1:1 | 0:12, 129:2, 1:1, 128:1 | 3:8, 8:6, 6:1, 5:1 | 1:11, 4:2, 2:2 | 1c:13, 0:2 | 7f:13, 33:1, 34:1 | 000007ff00:12, 03fff800ff:12, 03ffffffff:3, 07ffffffff:1 |
+| CHD1 | 14/14 | 0:14, 1:1 | 0:14, 2:1, 3:1 | 8:5, 7:3, 5:2, 10:2 | 1:14 | 0:9, 28:4, 37:2, 3b:1 | 7f:7, 33:3, 46:3, 35:2 | 000007ff00:12, 03fff800ff:12, 03ffffffff:3, 07ffffffff:1 |
+| CHD2 | 13/14 | 0:12, 1:4 | 0:12, 2:2, 3:1 | 7:5, 8:4, 3:2, 6:2 | 1:13, 3:1 | 0:10, 28:2, 24:2, 31:1 | 7f:9, 33:2, 45:2, 41:2 | 000007ff00:11, 03fff800ff:11, 03ffffffff:4, 07ffffffff:2 |
+| PAD | 14/14 | 0:14, 1:1 | 0:13, 2:2, 3:1 | 8:6, 7:5, 9:3, 4:3 | 1:14 | 0:6, 36:4, 24:3, 32:1 | 7f:7, 41:2, 34:1, 29:1 | 000007ff00:12, 03fff800ff:12, 03ffffffff:3, 07ffffffff:1 |
+| PHR1 | 14/14 | 0:14, 1:1 | 0:12, 2:3, 1:2 | 8:6, 7:5, 3:1, 4:1 | 1:14 | 0:7, 28:3, 36:3, 1c:2 | 7f:8, 33:3, 41:2, 27:1 | 000007ff00:12, 03fff800ff:12, 07ffffffff:2, 03ffffffff:2 |
+| PHR2 | 10/14 | 0:10, 1:1 | 0:10, 2:1, 3:1 | 7:3, 2:2, 10:2, 8:2 | 1:10 | 0:7, 28:2, 39:1, 24:1 | 7f:8, 33:2, 4e:1, 48:1 | 000007ff00:8, 03fff800ff:8, 03ffffffff:3, 07ffffffff:2 |
 
-#### Cntt (src ch -> byte) frequency by role
+No Cntt chunks in these files (SFF2 folds the Cntt byte into the Ctb2 NTT byte: 0x81 = bass).
 
-| role | Cntt byte1 : files |
-|---|---|
-| RHY1 |  |
-| RHY2 |  |
-| BASS |  |
-| CHD1 |  |
-| CHD2 |  |
-| PAD |  |
-| PHR1 |  |
-| PHR2 |  |
-
-#### Field-wise distribution per role (all tables, src>=8)
+#### Field-wise distribution per role (all tables, by destination role)
 
 | role | tables | NTR | NTT | high key | RTR | note low | note high | chord mute | note mute |
 |---|---|---|---|---|---|---|---|---|---|

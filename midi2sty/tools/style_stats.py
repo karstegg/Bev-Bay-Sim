@@ -642,24 +642,24 @@ def _a5_one(files):
                 ", ".join(f"{k}:{v}" for k, v in vals[fld].most_common(4)) for fld in ("ntr", "ntt", "hk", "rtr", "lo", "hi", "cmute")])
         out.append(md(rows, ["role", "files with table", "NTR", "NTT", "high key", "RTR", "note low(hex)", "note high(hex)", "chord mute"]))
     # cntt
-    if not any(f["cntt"] for f in files):
-        out.append("\n(no Cntt chunks in these files: SFF2 folds the Cntt byte into the Ctb2 NTT byte, 0x81 = bass)")
-        out.append("\n#### Cntt skipped\n")
-    out.append("\n#### Cntt (src ch -> byte) frequency by role\n")
-    rows = []
-    for ch in range(8, 16):
-        c = collections.Counter()
-        for f in files:
-            seen = set()
-            for n, ntt in [x for v in f["cntt"].values() for x in v]:
-                if n == ch:
-                    seen.add(ntt)
-            for v in seen:
-                c[f"{v:02x}"] += 1
-        rows.append([ROLES[ch - 8], ", ".join(f"{k}:{v}" for k, v in c.most_common())])
-    out.append(md(rows, ["role", "Cntt byte1 : files"]))
+    if not any(v for f in files for v in f["cntt"].values()):
+        out.append("\nNo Cntt chunks in these files (SFF2 folds the Cntt byte into the Ctb2 NTT byte: 0x81 = bass).")
+    else:
+        out.append("\n#### Cntt (src ch -> byte) frequency by role\n")
+        rows = []
+        for ch in range(8, 16):
+            c = collections.Counter()
+            for f in files:
+                seen = set()
+                for n, ntt in [x for v in f["cntt"].values() for x in v]:
+                    if n == ch:
+                        seen.add(ntt)
+                for v in seen:
+                    c[f"{v:02x}"] += 1
+            rows.append([ROLES[ch - 8], ", ".join(f"{k}:{v}" for k, v in c.most_common())])
+        out.append(md(rows, ["role", "Cntt byte1 : files"]))
     # per field per role (all groups): modal
-    out.append("\n#### Field-wise distribution per role (all tables, src>=8)\n")
+    out.append("\n#### Field-wise distribution per role (all tables, by destination role)\n")
     rows = []
     for ch in range(8, 16):
         T = [t for f in files for ts in f["tables"].values() for t in ts if t["dest"] == ch]

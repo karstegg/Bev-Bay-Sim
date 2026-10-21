@@ -88,6 +88,8 @@ def load_song(src: "str | os.PathLike | bytes") -> model.Song:
                 program=progs.get(ch), notes=notes, is_drums=drums))
         length = max(length, end_tick)
 
+    for i, t in enumerate(tracks):
+        t.index = i
     root, minor = guess_key(pc)
     return model.Song(tracks=tracks, tempo_bpm=tempo_bpm or 120.0,
                       time_sig=time_sig or (4, 4), length_ticks=length,

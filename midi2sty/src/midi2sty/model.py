@@ -17,6 +17,13 @@ SECTIONS = [
     "Fill In AA", "Fill In BB", "Fill In CC", "Fill In DD",
     "Fill In BA", "Ending A", "Ending B", "Ending C",
 ]
+# Canonical marker order seen in 26/28 real DGX/PSR styles (docs/analysis/style_anatomy.md)
+CANONICAL_ORDER = [
+    "Main A", "Main B", "Main C", "Main D",
+    "Fill In AA", "Fill In BB", "Fill In CC", "Fill In DD",
+    "Intro A", "Intro B", "Intro C",
+    "Ending A", "Ending B", "Ending C", "Fill In BA",
+]
 
 
 @dataclass(frozen=True)
@@ -35,6 +42,7 @@ class Track:
     program: int | None
     notes: list[Note] = field(default_factory=list)
     is_drums: bool = False
+    index: int = -1                  # position in Song.tracks (stable id used by recipes)
 
 
 @dataclass
@@ -60,6 +68,9 @@ class StyleSection:
     name: str                        # one of SECTIONS
     length_ticks: int                # whole bars
     channels: list[StyleChannel] = field(default_factory=list)
+    # (tick relative to section start, bpm): used for ritardando in endings
+    tempo_changes: list[tuple[int, float]] = field(default_factory=list)
+    bypass_chords: bool = False      # Intro B/C, Ending B/C: write literal-pitch (NTT bypass) tables
 
 
 @dataclass
@@ -67,3 +78,5 @@ class Style:
     tempo_bpm: float
     time_sig: tuple[int, int]
     sections: list[StyleSection]
+    sff_version: int = 1             # 1 = SFF1 + Ctab (default); real files never mix SFF2 with Ctab
+    name: str = "midi2sty"
