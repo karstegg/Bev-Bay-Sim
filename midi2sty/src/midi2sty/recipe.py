@@ -23,6 +23,7 @@ class TrackPlan:
     index: int                               # model.Track.index
     role: str                                # one of ROLES, EXCLUDE or FILL_ONLY
     reason: str = ""                         # why suggested (shown in the UI), e.g. "melody: mono, high, sparse"
+    name: str = ""                           # display name the user gave the track in the painter (informational)
 
 
 @dataclass
