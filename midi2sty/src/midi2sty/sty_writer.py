@@ -92,22 +92,30 @@ def _setup_events(style: model.Style, name: str) -> list[MidiEvent]:
     ev.append(_marker(0, "SInt"))
     ev.append(MidiEvent(0, SYSEX, a=0xF0, data=GM_RESET))
     programs: dict[str, int] = {}
+    first: dict[str, model.StyleChannel] = {}      # first section channel of each role (mix overrides)
     for sec in style.sections:
         for ch in sec.channels:
+            first.setdefault(ch.role, ch)
             if ch.program is not None:
                 programs.setdefault(ch.role, ch.program)
     for role in reversed(list(model.STYLE_CHANNELS)):   # real files list ch16 down to ch9
         midi_ch = model.STYLE_CHANNELS[role]
         vol, pan, rev, cho = _MIX[role]
         rhythm = role in _RHYTHM_ROLES
-        ev.append(MidiEvent(0, CC, midi_ch, 7, vol))
+        o = first.get(role)
+
+        def pick(field, default):
+            v = getattr(o, field, None) if o is not None else None
+            return default if v is None else v & 0x7F
+        ev.append(MidiEvent(0, CC, midi_ch, 7, pick("volume", vol)))
+        pan = pick("pan", pan) if pan is not None or getattr(o, "pan", None) is not None else None
         if pan is not None:
             ev.append(MidiEvent(0, CC, midi_ch, 10, pan))
-        ev.append(MidiEvent(0, CC, midi_ch, 91, rev))
-        ev.append(MidiEvent(0, CC, midi_ch, 93, cho))
+        ev.append(MidiEvent(0, CC, midi_ch, 91, pick("reverb", rev)))
+        ev.append(MidiEvent(0, CC, midi_ch, 93, pick("chorus", cho)))
         ev.append(MidiEvent(0, CC, midi_ch, 94, 0))
-        ev.append(MidiEvent(0, CC, midi_ch, 0, 127 if rhythm else 0))   # XG drum kit bank
-        ev.append(MidiEvent(0, CC, midi_ch, 32, 0))
+        ev.append(MidiEvent(0, CC, midi_ch, 0, pick("bank_msb", 127 if rhythm else 0)))   # XG drum kit bank
+        ev.append(MidiEvent(0, CC, midi_ch, 32, pick("bank_lsb", 0)))
         prog = programs.get(role, _DEFAULT_PROGRAM[role]) & 0x7F
         ev.append(MidiEvent(0, PROGRAM, midi_ch, prog))
     return ev

@@ -61,6 +61,13 @@ class StyleChannel:
     role: str                        # key of STYLE_CHANNELS
     program: int | None
     notes: list[Note] = field(default_factory=list)
+    # optional mixer overrides from the recipe (None = not sent / role default in the writer)
+    bank_msb: int | None = None
+    bank_lsb: int | None = None
+    volume: int | None = None
+    pan: int | None = None
+    reverb: int | None = None
+    chorus: int | None = None
 
 
 @dataclass

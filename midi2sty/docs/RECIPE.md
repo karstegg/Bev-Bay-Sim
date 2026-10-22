@@ -16,6 +16,22 @@ Bars are 0-based song bars.
 | `sections` | list of section plans (below) |
 | `sff_version` | 1 (default) |
 
+## Per-track overrides
+Each `tracks` entry may carry optional overrides; all default to `null` = as in the MIDI file.
+| field | range | effect |
+|---|---|---|
+| `channel` | 0-15 | sets the track's MIDI channel and `is_drums = (channel == 9)`, so role detection, the RHY2 kit / RHY1 percussion split and melody classification follow it |
+| `program` | 0-127 | replaces the track's program (flows into `StyleChannel.program`) |
+| `bank_msb`, `bank_lsb` | 0-127 | CC0 / CC32 of the style channel |
+| `volume`, `pan`, `reverb`, `chorus` | 0-127 | CC7, CC10, CC91, CC93 of the style channel |
+
+`build_style` works on a copy of the song (the caller's tracks are never mutated). Mix overrides are taken from the
+track with the most notes among those assigned to each style role and stored on every `StyleChannel` of that role
+(`bank_msb`, `bank_lsb`, `volume`, `pan`, `reverb`, `chorus`). `sty_writer` uses them (from the first section that
+contains the role) instead of the role defaults in the per-channel setup events; pan is sent whenever overridden
+(otherwise only for chords/phrases). Without overrides the output is byte for byte unchanged. `from_json` ignores
+unknown keys (top level, tracks, sections) so a newer UI never breaks the CLI. `validate()` checks the ranges.
+
 ## Section plan
 `name` is one of: Intro A/B/C, Main A-D, Fill In AA/BB/CC/DD, Fill In BA (the "break"), Ending A/B/C.
 

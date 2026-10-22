@@ -9,7 +9,7 @@ Bars are 0-based song bars (bar 0 = first bar of the MIDI at its time signature)
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 
 from . import model
 
@@ -18,12 +18,25 @@ EXCLUDE = "exclude"                          # track not used at all (e.g. vocal
 FILL_ONLY = "fill_only"                      # reserved: track material may be used inside fills only
 
 
+OVERRIDE_FIELDS = ("channel", "program", "bank_msb", "bank_lsb", "volume", "pan", "reverb", "chorus")
+MIX_FIELDS = OVERRIDE_FIELDS[2:]
+
+
 @dataclass
 class TrackPlan:
     index: int                               # model.Track.index
     role: str                                # one of ROLES, EXCLUDE or FILL_ONLY
     reason: str = ""                         # why suggested (shown in the UI), e.g. "melody: mono, high, sparse"
     name: str = ""                           # display name the user gave the track in the painter (informational)
+    # per-track overrides, None = as in the MIDI file (see docs/RECIPE.md)
+    channel: int | None = None               # 0-15 MIDI channel (9 = drums)
+    program: int | None = None               # 0-127
+    bank_msb: int | None = None              # 0-127
+    bank_lsb: int | None = None              # 0-127
+    volume: int | None = None                # CC7
+    pan: int | None = None                   # CC10
+    reverb: int | None = None                # CC91
+    chorus: int | None = None                # CC93
 
 
 @dataclass
@@ -42,6 +55,11 @@ class SectionPlan:
     # section, each playing its own song bar range; source/start_bar/derive_from are ignored. See docs/RECIPE.md.
     track_ranges: dict[int, tuple[int, int]] = field(default_factory=dict)
     mute_tracks: list[int] = field(default_factory=list)   # tracks silent in this section (painted sections)
+
+
+def _known(cls, d: dict) -> dict:
+    names = {f.name for f in fields(cls)}
+    return {k: v for k, v in d.items() if k in names}
 
 
 @dataclass
@@ -65,15 +83,15 @@ class Recipe:
     @classmethod
     def from_json(cls, text: str) -> "Recipe":
         d = json.loads(text)
-        d["tracks"] = [TrackPlan(**t) for t in d.get("tracks", [])]
+        d["tracks"] = [TrackPlan(**_known(TrackPlan, t)) for t in d.get("tracks", [])]
         secs = []
         for s in d.get("sections", []):
             s = dict(s)
             s["track_ranges"] = {int(k): (int(v[0]), int(v[1])) for k, v in (s.get("track_ranges") or {}).items()}
             s["mute_tracks"] = [int(x) for x in s.get("mute_tracks") or []]
-            secs.append(SectionPlan(**s))
+            secs.append(SectionPlan(**_known(SectionPlan, s)))
         d["sections"] = secs
-        return cls(**d)
+        return cls(**_known(cls, d))
 
     def role_of(self, index: int) -> str | None:
         for t in self.tracks:
@@ -86,6 +104,11 @@ class Recipe:
         for t in self.tracks:
             if t.role not in ROLES + [EXCLUDE, FILL_ONLY]:
                 bad.append(f"track {t.index}: unknown role {t.role!r}")
+            for f in OVERRIDE_FIELDS:
+                v = getattr(t, f)
+                hi = 15 if f == "channel" else 127
+                if v is not None and not (isinstance(v, int) and 0 <= v <= hi):
+                    bad.append(f"track {t.index}: {f} {v!r} must be an integer 0-{hi}")
         for s in self.sections:
             if s.name not in model.SECTIONS:
                 bad.append(f"unknown section {s.name!r}")

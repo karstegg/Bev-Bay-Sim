@@ -179,3 +179,25 @@ def test_real_sff1_files_have_our_structure(stem):
     # real files differ in details we do not mimic (order, alt-source tables, tempo, fn:)
     hard = [p for p in problems if "Ctab but" in p or "missing CASM" in p or "SFF2" in p]
     assert hard == [], hard
+
+
+def _cc_map(sty, midi_ch):
+    smf = parse_smf(sty[:sty.index(b"CASM")])
+    evs = smf.tracks[0] if hasattr(smf, "tracks") else smf[1][0]
+    return {e.a: e.b for e in evs if e.kind == CC and e.channel == midi_ch and e.tick == 0}
+
+
+def test_mix_overrides_written_and_default_unchanged():
+    plain = write_sty(_style())
+    st = _style()
+    for sec in st.sections:
+        for c in sec.channels:
+            if c.role == "BASS":
+                c.volume, c.pan, c.reverb, c.chorus, c.bank_msb, c.bank_lsb = 11, 22, 33, 44, 5, 6
+    out = write_sty(st)
+    m = _cc_map(out, model.STYLE_CHANNELS["BASS"])
+    assert (m[7], m[10], m[91], m[93], m[0], m[32]) == (11, 22, 33, 44, 5, 6)
+    base = _cc_map(plain, model.STYLE_CHANNELS["BASS"])
+    assert 10 not in base and base[7] == 65
+    assert _cc_map(out, model.STYLE_CHANNELS["CHD1"]) == _cc_map(plain, model.STYLE_CHANNELS["CHD1"])
+    assert write_sty(_style()) == plain

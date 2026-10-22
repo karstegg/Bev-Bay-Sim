@@ -113,3 +113,50 @@ def test_ending_painted_gets_final_hit_and_validate():
     r = base_recipe(song)
     r.sections.append(SectionPlan("Main C", track_ranges={1: (-1, 4)}))
     assert r.validate()
+
+
+def test_track_override_json_roundtrip_and_unknown_keys():
+    r = Recipe(tracks=[TrackPlan(1, "BASS", channel=3, program=40, bank_msb=1, bank_lsb=2,
+                                 volume=90, pan=10, reverb=20, chorus=30)])
+    r2 = Recipe.from_json(r.to_json())
+    assert r2 == r and r2.tracks[0].pan == 10 and TrackPlan(0, "BASS").channel is None
+    import json as _j
+    d = _j.loads(r.to_json())
+    d["future"] = 1
+    d["tracks"][0]["colour"] = "red"
+    d["sections"] = [{"name": "Main A", "zzz": 5}]
+    r3 = Recipe.from_json(_j.dumps(d))
+    assert r3.tracks[0].volume == 90 and r3.sections[0].name == "Main A"
+
+
+def test_override_validation():
+    r = Recipe(tracks=[TrackPlan(0, "BASS", channel=16, volume=128)])
+    assert len(r.validate()) == 2
+    assert Recipe(tracks=[TrackPlan(0, "BASS", channel=15, volume=127, pan=0)]).validate() == []
+
+
+def test_override_drum_to_pitched_and_back():
+    song = make_song()
+    r = base_recipe(song)
+    r.tracks[0].channel = 3               # drum track no longer drums
+    assert song.tracks[0].is_drums and song.tracks[0].channel == 9
+    st = arrange.build_style(song, r)
+    assert song.tracks[0].is_drums and song.tracks[0].channel == 9   # caller's song untouched
+    assert chan(sec(st, "Main B"), "RHY1") == []
+    r = base_recipe(song)
+    r.tracks[1].channel = 9               # bass becomes drums: split into RHY1/RHY2, no pitched BASS
+    st = arrange.build_style(song, r)
+    assert chan(sec(st, "Main B"), "BASS") == []
+    assert not song.tracks[1].is_drums
+
+
+def test_override_program_and_mix_reach_style():
+    song = make_song()
+    r = base_recipe(song)
+    r.tracks[1].program = 50
+    r.tracks[1].volume = 99
+    r.tracks[1].bank_msb = 8
+    st = arrange.build_style(song, r)
+    bass = next(c for c in sec(st, "Main B").channels if c.role == "BASS")
+    assert bass.program == 50 and bass.volume == 99 and bass.bank_msb == 8 and bass.pan is None
+    assert song.tracks[1].program == 33

@@ -21,12 +21,13 @@ Key ideas (evidence: docs/analysis/style_anatomy.md)
 from __future__ import annotations
 
 import bisect
+import dataclasses
 from collections import defaultdict
 from statistics import median
 
 from . import melody, model, sections
 from .model import CANONICAL_ORDER, STYLE_CHANNELS, Note, Style, StyleChannel, StyleSection
-from .recipe import EXCLUDE, FILL_ONLY, ROLES, Recipe, SectionPlan, TrackPlan
+from .recipe import EXCLUDE, FILL_ONLY, MIX_FIELDS, ROLES, Recipe, SectionPlan, TrackPlan
 
 PPQ = model.TICKS_PER_BEAT
 PITCHED = ("BASS", "CHD1", "CHD2", "PAD", "PHR1", "PHR2")
@@ -635,10 +636,38 @@ def build_style_with_warnings(song: model.Song, recipe: Recipe) -> tuple[Style, 
     return _build(song, recipe)
 
 
+def _apply_overrides(song: model.Song, recipe: Recipe) -> model.Song:
+    """Copy of the song with the recipe's channel/program overrides applied (caller's song untouched)."""
+    plans = {p.index: p for p in recipe.tracks}
+    tracks = []
+    for t in song.tracks:
+        p = plans.get(t.index)
+        if p is not None and (p.channel is not None or p.program is not None):
+            ch = t.channel if p.channel is None else p.channel
+            t = dataclasses.replace(
+                t, channel=ch, is_drums=t.is_drums if p.channel is None else ch == 9,
+                program=t.program if p.program is None else p.program)
+        tracks.append(t)
+    return dataclasses.replace(song, tracks=tracks)
+
+
+def _mix_overrides(ctx: "_Ctx", role: str) -> dict:
+    """Mix overrides of the track with the most notes among those assigned to the role."""
+    best = None
+    for t in ctx.song.tracks:
+        r = ctx.role.get(t.index)
+        if r == role or (role == "RHY1" and r == "RHY2" and t.is_drums):
+            if best is None or len(t.notes) > len(best.notes):
+                best = t
+    plan = next((p for p in ctx.recipe.tracks if best and p.index == best.index), None)
+    return {f: getattr(plan, f) for f in MIX_FIELDS} if plan else {}
+
+
 def _build(song: model.Song, recipe: Recipe) -> tuple[Style, list[str]]:
     bad = recipe.validate()
     if bad:
         raise ValueError("invalid recipe: " + "; ".join(bad))
+    song = _apply_overrides(song, recipe)
     ctx = _Ctx(song, recipe)
     bl = ctx.bl
     if not ctx.pools("chord") or ctx.nb == 0:
@@ -770,6 +799,7 @@ def _build(song: model.Song, recipe: Recipe) -> tuple[Style, list[str]]:
 
     tempo = recipe.tempo_bpm if recipe.tempo_bpm else max(30.0, song.tempo_bpm - 3)
     programs = {r: ctx.program(r) for r in STYLE_CHANNELS}
+    mixes = {r: _mix_overrides(ctx, r) for r in STYLE_CHANNELS}
     secs = []
     for name in CANONICAL_ORDER:
         p = pats[name]
@@ -778,7 +808,7 @@ def _build(song: model.Song, recipe: Recipe) -> tuple[Style, list[str]]:
         for role in STYLE_CHANNELS:
             ns = _clean(p.ch.get(role, []), length)
             if ns:
-                chans.append(StyleChannel(role, programs[role], ns))
+                chans.append(StyleChannel(role, programs[role], ns, **mixes[role]))
         sec = StyleSection(name, length, chans, bypass_chords=bypass.get(name, False))
         if name in ("Ending B", "Ending C"):
             sec.tempo_changes = _ritard(length, 3 if name == "Ending B" else 4, tempo)
