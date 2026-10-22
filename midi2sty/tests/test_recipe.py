@@ -176,3 +176,15 @@ def test_delay_override_reaches_writer():
     smf = parse_smf(write_sty(model.Style(100.0, (4, 4), secs)))
     cc94 = [e.b for e in smf.tracks[0] if e.kind == CC and e.a == 94 and e.channel == model.STYLE_CHANNELS["BASS"]]
     assert cc94 == [77]
+
+
+def test_velocity_scale_applies_to_track_notes():
+    from midi2sty import arrange, model
+    from midi2sty.recipe import Recipe, TrackPlan
+    song = model.Song(tracks=[model.Track("b", 1, 33, [model.Note(0, 480, 36, 100), model.Note(480, 480, 38, 100)], False, 0)],
+                      length_ticks=1920)
+    r = Recipe(tracks=[TrackPlan(0, "BASS", velocity=50)])
+    assert r.validate() == []
+    out = arrange._apply_overrides(song, r)
+    assert [n.vel for n in out.tracks[0].notes] == [50, 50] and [n.vel for n in song.tracks[0].notes] == [100, 100]
+    assert Recipe(tracks=[TrackPlan(0, "BASS", velocity=5)]).validate()

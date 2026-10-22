@@ -24,6 +24,7 @@ Each `tracks` entry may carry optional overrides; all default to `null` = as in 
 | `program` | 0-127 | replaces the track's program (flows into `StyleChannel.program`) |
 | `bank_msb`, `bank_lsb` | 0-127 | CC0 / CC32 of the style channel |
 | `volume`, `pan`, `reverb`, `chorus`, `delay` | 0-127 | CC7, CC10, CC91, CC93, CC94 (variation/delay send) of the style channel |
+| `velocity` | 10-300 | percent scale applied to this track's note velocities (100 = unchanged), clamped to 1-127 |
 
 `build_style` works on a copy of the song (the caller's tracks are never mutated). Mix overrides are taken from the
 track with the most notes among those assigned to each style role and stored on every `StyleChannel` of that role

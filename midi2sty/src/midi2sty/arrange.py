@@ -647,6 +647,10 @@ def _apply_overrides(song: model.Song, recipe: Recipe) -> model.Song:
             t = dataclasses.replace(
                 t, channel=ch, is_drums=t.is_drums if p.channel is None else ch == 9,
                 program=t.program if p.program is None else p.program)
+        if p is not None and p.velocity not in (None, 100):
+            k = p.velocity / 100.0
+            t = dataclasses.replace(t, notes=[model.Note(n.start, n.dur, n.pitch, max(1, min(127, round(n.vel * k))))
+                                              for n in t.notes])
         tracks.append(t)
     return dataclasses.replace(song, tracks=tracks)
 

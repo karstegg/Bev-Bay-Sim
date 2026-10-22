@@ -38,6 +38,7 @@ class TrackPlan:
     reverb: int | None = None                # CC91
     chorus: int | None = None                # CC93
     delay: int | None = None                 # CC94 (variation / delay send)
+    velocity: int | None = None              # note velocity scale in percent (10-300), applied to this track's notes
 
 
 @dataclass
@@ -110,6 +111,8 @@ class Recipe:
                 hi = 15 if f == "channel" else 127
                 if v is not None and not (isinstance(v, int) and 0 <= v <= hi):
                     bad.append(f"track {t.index}: {f} {v!r} must be an integer 0-{hi}")
+            if t.velocity is not None and not (isinstance(t.velocity, int) and 10 <= t.velocity <= 300):
+                bad.append(f"track {t.index}: velocity {t.velocity!r} must be an integer percent 10-300")
         for s in self.sections:
             if s.name not in model.SECTIONS:
                 bad.append(f"unknown section {s.name!r}")
