@@ -68,6 +68,7 @@ class StyleChannel:
     pan: int | None = None
     reverb: int | None = None
     chorus: int | None = None
+    delay: int | None = None          # CC94 (variation / delay send)
 
 
 @dataclass

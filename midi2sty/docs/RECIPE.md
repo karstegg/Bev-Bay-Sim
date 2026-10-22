@@ -23,11 +23,11 @@ Each `tracks` entry may carry optional overrides; all default to `null` = as in 
 | `channel` | 0-15 | sets the track's MIDI channel and `is_drums = (channel == 9)`, so role detection, the RHY2 kit / RHY1 percussion split and melody classification follow it |
 | `program` | 0-127 | replaces the track's program (flows into `StyleChannel.program`) |
 | `bank_msb`, `bank_lsb` | 0-127 | CC0 / CC32 of the style channel |
-| `volume`, `pan`, `reverb`, `chorus` | 0-127 | CC7, CC10, CC91, CC93 of the style channel |
+| `volume`, `pan`, `reverb`, `chorus`, `delay` | 0-127 | CC7, CC10, CC91, CC93, CC94 (variation/delay send) of the style channel |
 
 `build_style` works on a copy of the song (the caller's tracks are never mutated). Mix overrides are taken from the
 track with the most notes among those assigned to each style role and stored on every `StyleChannel` of that role
-(`bank_msb`, `bank_lsb`, `volume`, `pan`, `reverb`, `chorus`). `sty_writer` uses them (from the first section that
+(`bank_msb`, `bank_lsb`, `volume`, `pan`, `reverb`, `chorus`, `delay`). `sty_writer` uses them (from the first section that
 contains the role) instead of the role defaults in the per-channel setup events; pan is sent whenever overridden
 (otherwise only for chords/phrases). Without overrides the output is byte for byte unchanged. `from_json` ignores
 unknown keys (top level, tracks, sections) so a newer UI never breaks the CLI. `validate()` checks the ranges.

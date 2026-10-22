@@ -113,7 +113,7 @@ def _setup_events(style: model.Style, name: str) -> list[MidiEvent]:
             ev.append(MidiEvent(0, CC, midi_ch, 10, pan))
         ev.append(MidiEvent(0, CC, midi_ch, 91, pick("reverb", rev)))
         ev.append(MidiEvent(0, CC, midi_ch, 93, pick("chorus", cho)))
-        ev.append(MidiEvent(0, CC, midi_ch, 94, 0))
+        ev.append(MidiEvent(0, CC, midi_ch, 94, pick("delay", 0)))
         ev.append(MidiEvent(0, CC, midi_ch, 0, pick("bank_msb", 127 if rhythm else 0)))   # XG drum kit bank
         ev.append(MidiEvent(0, CC, midi_ch, 32, pick("bank_lsb", 0)))
         prog = programs.get(role, _DEFAULT_PROGRAM[role]) & 0x7F

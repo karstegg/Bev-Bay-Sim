@@ -160,3 +160,19 @@ def test_override_program_and_mix_reach_style():
     bass = next(c for c in sec(st, "Main B").channels if c.role == "BASS")
     assert bass.program == 50 and bass.volume == 99 and bass.bank_msb == 8 and bass.pan is None
     assert song.tracks[1].program == 33
+
+
+def test_delay_override_reaches_writer():
+    from midi2sty import model
+    from midi2sty.recipe import Recipe, TrackPlan
+    from midi2sty.smf import CC, parse_smf
+    from midi2sty.sty_writer import write_sty
+    r = Recipe.from_json(Recipe(tracks=[TrackPlan(0, "BASS", delay=77)]).to_json())
+    assert r.tracks[0].delay == 77
+    notes = [model.Note(0, 240, 36, 90)]
+    secs = [model.StyleSection(n, 1920, [model.StyleChannel("BASS", 33, notes, delay=77)])
+            for n in ("Main A", "Main B", "Main C", "Main D", "Fill In AA", "Fill In BB", "Fill In CC", "Fill In DD",
+                      "Intro A", "Intro B", "Intro C", "Ending A", "Ending B", "Ending C", "Fill In BA")]
+    smf = parse_smf(write_sty(model.Style(100.0, (4, 4), secs)))
+    cc94 = [e.b for e in smf.tracks[0] if e.kind == CC and e.a == 94 and e.channel == model.STYLE_CHANNELS["BASS"]]
+    assert cc94 == [77]

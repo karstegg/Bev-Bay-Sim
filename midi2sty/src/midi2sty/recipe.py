@@ -18,7 +18,7 @@ EXCLUDE = "exclude"                          # track not used at all (e.g. vocal
 FILL_ONLY = "fill_only"                      # reserved: track material may be used inside fills only
 
 
-OVERRIDE_FIELDS = ("channel", "program", "bank_msb", "bank_lsb", "volume", "pan", "reverb", "chorus")
+OVERRIDE_FIELDS = ("channel", "program", "bank_msb", "bank_lsb", "volume", "pan", "reverb", "chorus", "delay")
 MIX_FIELDS = OVERRIDE_FIELDS[2:]
 
 
@@ -37,6 +37,7 @@ class TrackPlan:
     pan: int | None = None                   # CC10
     reverb: int | None = None                # CC91
     chorus: int | None = None                # CC93
+    delay: int | None = None                 # CC94 (variation / delay send)
 
 
 @dataclass
