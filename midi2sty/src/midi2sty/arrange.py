@@ -328,6 +328,8 @@ class _Ctx:
         self.tshift = _tshift(recipe.tonic)
         self._bars()
         self._pools: dict[str, dict[str, _Pool]] = {}
+        self._tpools: dict[int, dict[str, _Pool]] = {}
+        self.warnings: list[str] = []
 
     def _by_role(self, roles):
         return [t for t in self.song.tracks if self.role.get(t.index) in roles and not t.is_drums]
@@ -405,31 +407,72 @@ class _Ctx:
             p += 1
         return a, e - a, p + _tshift(root), n.vel
 
+    def _track_raw(self, t, mode: str) -> dict[str, list[Note]]:
+        """Normalised notes of one track keyed by style role (drum kits split RHY2/RHY1)."""
+        role = self.role.get(t.index)
+        out: dict[str, list[Note]] = defaultdict(list)
+        if role in ("RHY1", "RHY2"):
+            core = t.is_drums and any(n.pitch in KICKS | SNARES for n in t.notes)
+            for n in t.notes:
+                r = "RHY1" if (role == "RHY1" or (core and n.pitch in PERC)) else "RHY2"
+                out[r].append(n)
+        elif role in PITCHED and not t.is_drums and t.notes:
+            ns = [Note(a, d, p, v) for x in t.notes for a, d, p, v in self._pieces(x, mode)]
+            med = median(x.pitch for x in ns)
+            off = round((TARGET[role] - med) / 12) * 12
+            lo, hi = WINDOW[role]
+            for x in ns:
+                p = x.pitch + off
+                while p < lo:
+                    p += 12
+                while p > hi:
+                    p -= 12
+                out[role].append(Note(x.start, x.dur, p, x.vel))
+        return out
+
     def pools(self, mode: str) -> dict[str, _Pool]:
         if mode in self._pools:
             return self._pools[mode]
         raw: dict[str, list[Note]] = defaultdict(list)
         for t in self.song.tracks:
-            role = self.role.get(t.index)
-            if role in ("RHY1", "RHY2"):
-                core = t.is_drums and any(n.pitch in KICKS | SNARES for n in t.notes)
-                for n in t.notes:
-                    r = "RHY1" if (role == "RHY1" or (core and n.pitch in PERC)) else "RHY2"
-                    raw[r].append(n)
-            elif role in PITCHED and not t.is_drums and t.notes:
-                ns = [Note(a, d, p, v) for x in t.notes for a, d, p, v in self._pieces(x, mode)]
-                med = median(x.pitch for x in ns)
-                off = round((TARGET[role] - med) / 12) * 12
-                lo, hi = WINDOW[role]
-                for x in ns:
-                    p = x.pitch + off
-                    while p < lo:
-                        p += 12
-                    while p > hi:
-                        p -= 12
-                    raw[role].append(Note(x.start, x.dur, p, x.vel))
+            for r, ns in self._track_raw(t, mode).items():
+                raw[r].extend(ns)
         self._pools[mode] = {r: _Pool(v) for r, v in raw.items() if v}
         return self._pools[mode]
+
+    def track_pools(self, index: int) -> dict[str, _Pool]:
+        if index not in self._tpools:
+            raw = self._track_raw(self.tracks[index], "chord")
+            self._tpools[index] = {r: _Pool(v) for r, v in raw.items() if v}
+        return self._tpools[index]
+
+    def paint(self, plan: SectionPlan, warn: list[str]) -> Pat | None:
+        """Assemble a section from per-track song bar ranges (plan.track_ranges); None if nothing usable."""
+        muted = set(plan.mute_tracks)
+        parts = []
+        for idx, (start, nb) in sorted(plan.track_ranges.items()):
+            if idx in muted:
+                continue
+            role = self.role.get(idx)
+            if idx not in self.tracks:
+                warn.append(f"{plan.name}: track {idx} does not exist in the song, skipped")
+            elif role is None or role in (EXCLUDE, FILL_ONLY):
+                warn.append(f"{plan.name}: track {idx} has role {role or 'none'!r} and cannot be painted, skipped")
+            elif nb >= 1 and start >= 0:
+                parts.append((idx, start, nb))
+        if not parts:
+            if plan.track_ranges:
+                warn.append(f"{plan.name}: no usable painted track, section built without painting")
+            return None
+        n = plan.n_bars or max(nb for _, _, nb in parts)
+        out = Pat(n)
+        for idx, start, nb in parts:
+            m = min(nb, n)
+            for r, pool in self.track_pools(idx).items():
+                ns = pool.cut(start * self.bl, (start + m) * self.bl)
+                if ns:
+                    out.ch.setdefault(r, []).extend(ns)
+        return out
 
     @property
     def has_drums(self) -> bool:
@@ -561,8 +604,9 @@ def _has_content(p: Pat) -> bool:
         sum(1 for x in p.ch.get("RHY2", []) if x.pitch not in CRASH) >= 6
 
 
-def _finish_literal(p: Pat, bl: int, ending: bool, ctx: _Ctx):
+def _finish_literal(p: Pat, bl: int, ending: bool, ctx: _Ctx, painted: bool = False):
     end = p.n * bl
+    drums = ctx.has_drums and (not painted or any(p.ch.get(r) for r in ('RHY1', 'RHY2')))
     if ending:
         last = end - bl
         for r in list(p.ch):
@@ -574,15 +618,24 @@ def _finish_literal(p: Pat, bl: int, ending: bool, ctx: _Ctx):
                     x = Note(x.start, max(30, end - PPQ - x.start), x.pitch, x.vel)
                 keep.append(x)
             p.ch[r] = keep
-        if ctx.has_drums and not any(x.pitch in CRASH and x.start >= last for x in p.ch.get("RHY2", [])):
+        if drums and not any(x.pitch in CRASH and x.start >= last for x in p.ch.get("RHY2", [])):
             p.ch.setdefault("RHY2", []).append(Note(last, min(PPQ, bl), 49, 100))
-    elif ctx.has_drums and not any(x.pitch in CRASH and x.start >= end - 120 for x in p.ch.get("RHY2", [])):
+    elif drums and not any(x.pitch in CRASH and x.start >= end - 120 for x in p.ch.get("RHY2", [])):
         _crash(p, bl)
 
 
 # ---------------------------------------------------------------- build_style
 
 def build_style(song: model.Song, recipe: Recipe) -> Style:
+    return _build(song, recipe)[0]
+
+
+def build_style_with_warnings(song: model.Song, recipe: Recipe) -> tuple[Style, list[str]]:
+    """Like build_style, plus human-readable warnings (e.g. painted tracks that were skipped)."""
+    return _build(song, recipe)
+
+
+def _build(song: model.Song, recipe: Recipe) -> tuple[Style, list[str]]:
     bad = recipe.validate()
     if bad:
         raise ValueError("invalid recipe: " + "; ".join(bad))
@@ -599,10 +652,19 @@ def build_style(song: model.Song, recipe: Recipe) -> Style:
         pl = plans.get(name)
         return (pl.n_bars if pl and pl.n_bars else default or DEFAULT_BARS[name])
 
+    painted: dict[str, Pat] = {}
+    for pl in recipe.sections:
+        if pl.track_ranges:
+            p = ctx.paint(pl, ctx.warnings)
+            if p is not None:
+                painted[pl.name] = p
+
     # --- Mains
     for m in MAINS:
         pl = plans.get(m)
-        if pl and pl.source == "song" and pl.start_bar is not None:
+        if m in painted:
+            pats[m] = painted[m]
+        elif pl and pl.source == "song" and pl.start_bar is not None:
             pats[m] = ctx.slice("chord", pl.start_bar, nbars(m))
     if not pats:  # nothing declared: first busy 4-bar window becomes Main B
         pools = ctx.pools("chord").values()
@@ -626,6 +688,22 @@ def build_style(song: model.Song, recipe: Recipe) -> Style:
     for f, default in FILL_SRC.items():
         pl = plans.get(f)
         n = nbars(f)
+        if f in painted:
+            p = painted[f]
+            if has_drums and any(p.ch.get(r) for r in ("RHY1", "RHY2")) and \
+                    not any(x.pitch in CRASH and x.start >= p.n * bl - 120
+                            for r in ("RHY1", "RHY2") for x in p.ch.get(r, [])):
+                for idx, (st, nb) in sorted(pl.track_ranges.items()):
+                    t = ctx.tracks.get(idx)
+                    if t is None or not t.is_drums or idx in pl.mute_tracks or ctx.role.get(idx) not in ("RHY1", "RHY2"):
+                        continue
+                    hit = [x for pool in ctx.track_pools(idx).values() for x in pool.cut((st + min(nb, p.n)) * bl, (st + min(nb, p.n)) * bl + bl // 16)
+                           if x.pitch in CRASH]
+                    if hit:
+                        _crash(p, bl, max(x.vel for x in hit))
+                        break
+            pats[f] = p
+            continue
         if pl and pl.source == "song" and pl.start_bar is not None:
             p = ctx.slice("chord", pl.start_bar, n)
             if has_drums and not any(x.pitch in CRASH and x.start >= p.n * bl - 120
@@ -645,6 +723,10 @@ def build_style(song: model.Song, recipe: Recipe) -> Style:
 
     def literal(name, ending):
         pl = plans.get(name)
+        if name in painted:
+            p = painted[name]
+            _finish_literal(p, bl, ending, ctx, painted=True)
+            return p
         if pl and pl.source == "song" and pl.start_bar is not None:
             p = ctx.slice("tonic", pl.start_bar, nbars(name))
             if _has_content(p):
@@ -702,4 +784,4 @@ def build_style(song: model.Song, recipe: Recipe) -> Style:
             sec.tempo_changes = _ritard(length, 3 if name == "Ending B" else 4, tempo)
         secs.append(sec)
     return Style(tempo_bpm=tempo, time_sig=song.time_sig, sections=secs, sff_version=recipe.sff_version,
-                 name=recipe.name)
+                 name=recipe.name), ctx.warnings

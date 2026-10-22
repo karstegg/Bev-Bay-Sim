@@ -37,6 +37,10 @@ class SectionPlan:
     n_bars: int | None = None                # None = canonical default length for the section type
     derive_from: str | None = None
     note: str = ""                           # human-readable why (shown in the UI), e.g. "song bar 34 (best fill candidate, 0.62)"
+    # painted material (recipe v2): {track_index: (start_bar, n_bars)}. When non-empty ONLY these tracks feed the
+    # section, each playing its own song bar range; source/start_bar/derive_from are ignored. See docs/RECIPE.md.
+    track_ranges: dict[int, tuple[int, int]] = field(default_factory=dict)
+    mute_tracks: list[int] = field(default_factory=list)   # tracks silent in this section (painted sections)
 
 
 @dataclass
@@ -52,13 +56,22 @@ class Recipe:
     sff_version: int = 1
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), indent=2)
+        d = asdict(self)
+        for s in d["sections"]:
+            s["track_ranges"] = {str(k): [int(v[0]), int(v[1])] for k, v in s["track_ranges"].items()}
+        return json.dumps(d, indent=2)
 
     @classmethod
     def from_json(cls, text: str) -> "Recipe":
         d = json.loads(text)
         d["tracks"] = [TrackPlan(**t) for t in d.get("tracks", [])]
-        d["sections"] = [SectionPlan(**s) for s in d.get("sections", [])]
+        secs = []
+        for s in d.get("sections", []):
+            s = dict(s)
+            s["track_ranges"] = {int(k): (int(v[0]), int(v[1])) for k, v in (s.get("track_ranges") or {}).items()}
+            s["mute_tracks"] = [int(x) for x in s.get("mute_tracks") or []]
+            secs.append(SectionPlan(**s))
+        d["sections"] = secs
         return cls(**d)
 
     def role_of(self, index: int) -> str | None:
@@ -75,6 +88,11 @@ class Recipe:
         for s in self.sections:
             if s.name not in model.SECTIONS:
                 bad.append(f"unknown section {s.name!r}")
+            for i, (a, n) in s.track_ranges.items():
+                if a < 0 or n < 1:
+                    bad.append(f"{s.name}: track {i} range ({a}, {n}) needs start_bar >= 0 and n_bars >= 1")
+            if s.track_ranges:
+                continue
             if s.source == "song" and s.start_bar is None:
                 bad.append(f"{s.name}: source 'song' needs start_bar")
             if s.source == "derive" and not s.derive_from:
