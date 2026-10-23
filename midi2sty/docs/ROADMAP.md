@@ -4,7 +4,7 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 
 ## Next: use the real keyboard as the sound engine
 1. **Laptop to DGX over MIDI** (USB-MIDI or a MIDI interface into the DGX MIDI port).
-   - Choose the DGX as the *output* in the painter's playback and in the Arranger page, instead of the built-in soundfont player. Web MIDI in Chrome/Edge: list outputs, send per-channel setup first (bank MSB/LSB, program, volume, pan, reverb, chorus, delay), then notes, pitch bend and controllers.
+   - Choose the DGX as the *output* in the painter's playback and in the Style Player page, instead of the built-in soundfont player. Web MIDI in Chrome/Edge: list outputs, send per-channel setup first (bank MSB/LSB, program, volume, pan, reverb, chorus, delay), then notes, pitch bend and controllers.
    - Keep the internal soundfont as the fallback when no port is available.
    - Use it to confirm levels and instrument selections on the DGX itself after first-round testing in the page.
 2. **Let Claude test on its own.** Add a small local bridge on the laptop (for example a Python MIDI service exposed to Claude as a tool) so Claude can:
@@ -22,6 +22,6 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 
 ## Later: tooling
 - **Master track at the top of the painter's song page:** a first row above all tracks where you mark the overall song sections (Intro, Main A-D, Fill, Break, Ending) once, for every track at the same time. Painting that row would assign the bars across all active tracks, so the per-track rows only need touching for exceptions.
-- Arranger page: more of the real arranger behaviour (retrigger rules, chord-type masks, bass-on-chord, sync stop, OTS, tap tempo).
+- Style Player page: more of the real arranger behaviour (retrigger rules, chord-type masks, bass-on-chord, sync stop, OTS, tap tempo).
 - Preview of a painted recipe as a style directly in the painter (build in the browser, no round trip).
-- Real soundfont selection per style channel and per-channel effects in the Arranger page.
+- Real soundfont selection per style channel and per-channel effects in the Style Player page.
