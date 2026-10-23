@@ -21,6 +21,7 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 - Ritardando and ending variations for more songs; better fills built from song bars; Intro A/Break detection.
 
 ## Later: tooling
+- **Master track at the top of the painter's song page:** a first row above all tracks where you mark the overall song sections (Intro, Main A-D, Fill, Break, Ending) once, for every track at the same time. Painting that row would assign the bars across all active tracks, so the per-track rows only need touching for exceptions.
 - Arranger page: more of the real arranger behaviour (retrigger rules, chord-type masks, bass-on-chord, sync stop, OTS, tap tempo).
 - Preview of a painted recipe as a style directly in the painter (build in the browser, no round trip).
 - Real soundfont selection per style channel and per-channel effects in the Arranger page.
