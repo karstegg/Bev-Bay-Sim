@@ -20,8 +20,11 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 - Carry pitch bend and in-song controller moves into styles where the source bars allow it.
 - Ritardando and ending variations for more songs; better fills built from song bars; Intro A/Break detection.
 
+## Done: master section row
+The painter has a Master row under the ruler: painting there assigns the section to every active (non-excluded) track for those bars; the eraser clears them. Blocks show `n/m` when only some tracks have the section.
+
 ## Later: tooling
-- **Master track at the top of the painter's song page:** a first row above all tracks where you mark the overall song sections (Intro, Main A-D, Fill, Break, Ending) once, for every track at the same time. Painting that row would assign the bars across all active tracks, so the per-track rows only need touching for exceptions.
+- JJazzLab Player tab (ported JJazzLab note conversion) is in. Still to port: the retrigger rule for notes ringing across a chord change.
 - Style Player page: more of the real arranger behaviour (retrigger rules, chord-type masks, bass-on-chord, sync stop, OTS, tap tempo).
 - Preview of a painted recipe as a style directly in the painter (build in the browser, no round trip).
 - Real soundfont selection per style channel and per-channel effects in the Style Player page.
