@@ -85,3 +85,11 @@ New in v2:
   "sff_version": 1
 }
 ```
+
+## Section markers in the MIDI (auto recipe)
+If the MIDI carries marker events (meta 0x06) named like Yamaha's marker template, `suggest_recipe` uses them instead of
+guessing: each recognised marker starts a section that runs to the next marker (any marker, e.g. "End of Section").
+Names (case/space insensitive): `Intro I/II/III` or `Intro A/B/C`, `Fill A..D` or `Fill In AA..DD`, `Break` or
+`Fill In BA`, `Main A..D`, `Ending I/II/III` or `Ending A/B/C`. At least one Main marker is required. Markers
+not on a bar line are rounded (a warning is recorded by `markers.marker_sections`). Sections without a marker keep the
+automatic plan. The painter reads the same markers (drawn on the ruler) and "Use markers" paints them on every active track.

@@ -53,6 +53,7 @@ class Song:
     length_ticks: int = 0
     key_root: int = 0                # 0=C .. 11=B (best guess)
     key_minor: bool = False
+    markers: list[tuple[int, str]] = field(default_factory=list)   # (tick, text) of SMF marker events
 
 
 @dataclass

@@ -25,7 +25,7 @@ import dataclasses
 from collections import defaultdict
 from statistics import median
 
-from . import melody, model, sections
+from . import markers, melody, model, sections
 from .model import CANONICAL_ORDER, STYLE_CHANNELS, Note, Style, StyleChannel, StyleSection
 from .recipe import EXCLUDE, FILL_ONLY, MIX_FIELDS, ROLES, Recipe, SectionPlan, TrackPlan
 
@@ -189,6 +189,10 @@ def suggest_recipe(song: model.Song) -> Recipe:
     recipe = Recipe(tonic=song.key_root, minor=song.key_minor,
                     tracks=[plans[t.index] for t in song.tracks])
     recipe.sections = _suggest_sections(song, sections.propose_sections(song), plans)
+    marked, _ = markers.marker_sections(song)
+    if marked:                                   # the song's own section markers beat the guesses
+        by = {p.name: p for p in marked}
+        recipe.sections = [by.pop(p.name, p) for p in recipe.sections] + list(by.values())
     return recipe
 
 

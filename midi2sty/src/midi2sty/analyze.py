@@ -44,6 +44,7 @@ def load_song(src: "str | os.PathLike | bytes") -> model.Song:
     tracks: list[model.Track] = []
     length = 0
     pc = [0.0] * 12
+    markers: list[tuple[int, str]] = []
 
     for events in f.tracks:
         tname = ""
@@ -60,6 +61,8 @@ def load_song(src: "str | os.PathLike | bytes") -> model.Song:
                     us = int.from_bytes(e.data, "big")
                     if us > 0:
                         tempo_bpm = 60_000_000 / us
+                elif e.meta_type == 0x06 and e.data:
+                    markers.append((e.tick, e.data.decode("latin-1").strip("\x00 ")))
                 elif e.meta_type == 0x58 and time_sig is None and len(e.data) >= 2:
                     time_sig = (e.data[0], 1 << e.data[1])
             elif e.kind == smf.PROGRAM:
@@ -93,4 +96,4 @@ def load_song(src: "str | os.PathLike | bytes") -> model.Song:
     root, minor = guess_key(pc)
     return model.Song(tracks=tracks, tempo_bpm=tempo_bpm or 120.0,
                       time_sig=time_sig or (4, 4), length_ticks=length,
-                      key_root=root, key_minor=minor)
+                      key_root=root, key_minor=minor, markers=sorted(markers))

@@ -20,8 +20,18 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 - Carry pitch bend and in-song controller moves into styles where the source bars allow it.
 - Ritardando and ending variations for more songs; better fills built from song bars; Intro A/Break detection.
 
+## Done: section markers
+MIDI markers named like Yamaha's template (Intro I-III, Fill A-D, Main A-D, Break, Ending I-III) become the section plan in the converter, and the painter shows them on the ruler with a "Use markers" button.
+
 ## Done: master section row
 The painter has a Master row under the ruler: painting there assigns the section to every active (non-excluded) track for those bars; the eraser clears them. Blocks show `n/m` when only some tracks have the section.
+
+## Next, from the Yamaha tool review (docs/analysis/yamaha_midi_song_to_style.md)
+- Export a marker template from the painter.
+- Per-section key and time signature in the recipe.
+- Per-role Ctab presets (values taken from the reference styles) and limit validation; octave shift vs cut.
+- 2-Main mode and extra melody roles (VocalHarmony, MeloChord).
+- Side-by-side comparison with Yamaha's tool on the same MIDI.
 
 ## Later: tooling
 - JJazzLab Player tab (ported JJazzLab note conversion) is in. Still to port: the retrigger rule for notes ringing across a chord change.
