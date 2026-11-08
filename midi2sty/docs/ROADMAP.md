@@ -21,7 +21,7 @@ Status: the converter (`midi2sty`), the web Section Painter (arrange, mixer, arr
 - Ritardando and ending variations for more songs; better fills built from song bars; Intro A/Break detection.
 
 ## Done: section markers
-MIDI markers named like Yamaha's template (Intro I-III, Fill A-D, Main A-D, Break, Ending I-III) become the section plan in the converter, and the painter shows them on the ruler with a "Use markers" button.
+MIDI markers named like Yamaha's template (Intro I-III, Fill A-D, Main A-D, Break, Ending I-III) become the section plan in the converter, and the painter has an editable marker lane (add, drag, rename, delete, undo, saved with the project) with a "Use markers" button. Still to do: feed the marker lane into the converter (today only markers inside the MIDI file are read) and export a marker template.
 
 ## Done: master section row
 The painter has a Master row under the ruler: painting there assigns the section to every active (non-excluded) track for those bars; the eraser clears them. Blocks show `n/m` when only some tracks have the section.
